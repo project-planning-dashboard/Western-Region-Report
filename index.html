@@ -632,6 +632,166 @@ tr:hover td{background:#f8fbfd}
 
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<style id="v126-stable-startup-style">
+/* v126 — single-paint startup. The dashboard may prepare and sync underneath,
+   but the user sees one static screen until the final state is committed. */
+html.v126-boot::before{
+  content:"";position:fixed;inset:0;z-index:2147483646;
+  background:linear-gradient(145deg,#eef5fa 0%,#f8fbfe 52%,#eaf3f9 100%);
+  pointer-events:auto;
+}
+html.v126-boot::after{
+  content:"Western Region Portfolio Dashboard\A Preparing latest project data…";
+  white-space:pre;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:2147483647;width:min(430px,calc(100vw - 42px));padding:30px 28px;
+  border:1px solid #d4e4ef;border-radius:24px;background:#fff;
+  box-shadow:0 24px 60px rgba(20,53,83,.13);text-align:center;
+  font-family:Inter,Segoe UI,Arial,sans-serif;font-size:13px;line-height:2;
+  font-weight:750;color:#687d91;letter-spacing:.1px;pointer-events:auto;
+}
+/* Hide legacy animated loaders while v126 owns startup. */
+html.v126-boot #v53StartupCover{display:none!important}
+html.v126-boot body{overflow:hidden!important}
+/* Commit frame: no transitional movement is allowed. */
+body.v126-atomic *,body.v126-atomic *::before,body.v126-atomic *::after{
+  animation:none!important;transition:none!important;scroll-behavior:auto!important;
+}
+</style>
+<script id="v126-stable-startup-core">
+(function(){
+  const w=window,d=document;
+  if(w.__v126BootController)return;
+  d.documentElement.classList.add('v126-boot');
+
+  const native={
+    setTimeout:w.setTimeout.bind(w),clearTimeout:w.clearTimeout.bind(w),
+    setInterval:w.setInterval.bind(w),clearInterval:w.clearInterval.bind(w),
+    raf:w.requestAnimationFrame.bind(w),caf:w.cancelAnimationFrame.bind(w),
+    fetch:typeof w.fetch==='function'?w.fetch.bind(w):null
+  };
+  let batching=true,loaded=false,armed=false,finalizing=false,committed=false;
+  let pendingTasks=0,pendingFetch=0,pendingBodies=0,fakeSeq=91000000;
+  let loadAt=0,lastActivity=performance.now(),finalRender=null,checkHandle=0;
+  const fake=new Map();
+  const touch=()=>{lastActivity=performance.now();};
+
+  function scheduleOne(fn,args,kind){
+    const id=fakeSeq++,state={cancelled:false,real:0,kind};
+    pendingTasks++;touch();fake.set(id,state);
+    state.real=native.setTimeout(()=>{
+      if(state.cancelled)return;
+      fake.delete(id);
+      try{fn(...args)}catch(err){native.setTimeout(()=>{throw err},0)}
+      finally{pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();}
+    },0);
+    return id;
+  }
+  function cancelFake(id){
+    const s=fake.get(id);if(!s)return false;
+    s.cancelled=true;fake.delete(id);native.clearTimeout(s.real);
+    pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();return true;
+  }
+
+  w.setTimeout=function(fn,delay,...args){
+    const ms=Number(delay)||0;
+    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'timeout');
+    return native.setTimeout(fn,delay,...args);
+  };
+  w.clearTimeout=function(id){if(!cancelFake(id))return native.clearTimeout(id)};
+  w.setInterval=function(fn,delay,...args){
+    const ms=Number(delay)||0;
+    /* Startup intervals in this report are legacy re-application loops; one pass is enough. */
+    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'interval');
+    return native.setInterval(fn,delay,...args);
+  };
+  w.clearInterval=function(id){if(!cancelFake(id))return native.clearInterval(id)};
+  w.requestAnimationFrame=function(fn){
+    if(batching&&typeof fn==='function'){
+      /* A future timestamp completes JS count-up/gauge animations in one off-screen frame. */
+      return scheduleOne(()=>fn(performance.now()+6000),[],'raf');
+    }
+    return native.raf(fn);
+  };
+  w.cancelAnimationFrame=function(id){if(!cancelFake(id))return native.caf(id)};
+
+  if(native.fetch){
+    w.fetch=function(input,init){
+      const url=String(typeof input==='string'?input:(input&&input.url)||'');
+      const tracked=/(?:^|\/)(?:Planning|Cost|Issues)\.xlsx(?:\?|$)/i.test(url);
+      if(!tracked)return native.fetch(input,init);
+      pendingFetch++;touch();queueCheck();
+      return native.fetch(input,init).then(res=>{
+        pendingFetch=Math.max(0,pendingFetch-1);touch();
+        if(res&&typeof res.arrayBuffer==='function'){
+          const ab=res.arrayBuffer.bind(res);
+          res.arrayBuffer=function(){
+            pendingBodies++;touch();queueCheck();
+            return ab().finally(()=>{pendingBodies=Math.max(0,pendingBodies-1);touch();queueCheck();});
+          };
+        }
+        queueCheck();return res;
+      },err=>{pendingFetch=Math.max(0,pendingFetch-1);touch();queueCheck();throw err;});
+    };
+  }
+
+  function restoreRuntime(){
+    batching=false;
+    w.setTimeout=native.setTimeout;w.clearTimeout=native.clearTimeout;
+    w.setInterval=native.setInterval;w.clearInterval=native.clearInterval;
+    w.requestAnimationFrame=native.raf;w.cancelAnimationFrame=native.caf;
+    if(native.fetch)w.fetch=native.fetch;
+  }
+  function reveal(){
+    if(committed)return;committed=true;
+    restoreRuntime();
+    try{d.body?.classList.add('v53-settled','v50-stable');}catch(e){}
+    const legacy=d.getElementById('v53StartupCover');if(legacy)legacy.remove();
+    d.documentElement.classList.remove('v126-boot');
+    native.raf(()=>native.raf(()=>d.body?.classList.remove('v126-atomic','v125-finalize','v125-home-freeze')));
+  }
+  function commitFinal(){
+    if(finalizing||committed)return;finalizing=true;
+    d.body?.classList.add('v126-atomic');
+    try{if(typeof finalRender==='function')finalRender();}
+    catch(err){console.warn('v126 final render',err)}
+    finally{finalizing=false;touch();queueCheck();}
+  }
+  function readyToCommit(){
+    if(!armed||!loaded||committed||finalizing)return false;
+    if(pendingFetch||pendingBodies||pendingTasks)return false;
+    if(performance.now()-loadAt<120)return false;
+    if(performance.now()-lastActivity<70)return false;
+    return true;
+  }
+  function queueCheck(){
+    if(committed||!armed)return;
+    native.clearTimeout(checkHandle);
+    checkHandle=native.setTimeout(check,80);
+  }
+  function check(){
+    if(committed)return;
+    if(readyToCommit()){
+      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
+      /* final render and all of its short deferred passes have drained */
+      reveal();return;
+    }
+    /* Safety: never trap the user behind the cover if a remote workbook is unavailable. */
+    if(loaded&&performance.now()-loadAt>12000){
+      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
+      reveal();return;
+    }
+    queueCheck();
+  }
+
+  w.addEventListener('load',()=>{loaded=true;loadAt=performance.now();touch();queueCheck();},{once:true});
+  w.__v126BootController={
+    arm(fn){finalRender=fn;armed=true;queueCheck();},
+    state(){return{loaded,armed,pendingTasks,pendingFetch,pendingBodies,batching,committed}}
+  };
+})();
+</script>
+
 </head>
 <body>
 <header class="hero">
@@ -3401,9 +3561,9 @@ body.v53-settled .v35-perf-row:hover{
   const d=document;
   const byId=id=>d.getElementById(id);
   const FILES={
-    schedule:'Planning.xlsx',
-    costing:'Cost.xlsx',
-    issues:'Issues.xlsx'
+    schedule:'Updated Project Details and Target Status(2).xlsx',
+    costing:'WOA OVERALL COSTING-PORTFOLIO REPORT 22-6-26(1).xlsx',
+    issues:'Al Fanar Issues Log(1).xlsx'
   };
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
   const val=(row,i)=>row&&i<row.length?row[i]:null;
@@ -4207,7 +4367,7 @@ body.v69-unit-filtered #regionFilter{display:none!important}
   const d=document;
   const byId=id=>d.getElementById(id);
   const STATIC_UNIT_MAP={"PE-221": "Western Unit", "PE-182": "Western Unit", "PE-118": "Western Unit", "PE-261": "Western Unit", "PE-243": "Western Unit", "PE-241": "Western Unit", "PE-257": "Western Unit", "PE-258": "Western Unit", "PE-270": "Western Unit", "PE-290": "Western Unit", "PE-254": "Western Unit", "PE-260": "Western Unit", "PE-262": "Western Unit", "PE-296": "Western Unit", "PE-281": "Western Unit", "PE-280": "Western Unit", "PE-185": "Western Unit", "PE-267": "Western Unit", "PE-291": "Western Unit", "PE-292": "Western Unit", "PE-315": "Western Unit", "PE-246": "Western Unit", "PE-263": "Western Unit", "PE-265": "Western Unit", "PE-266": "Western Unit", "PE-286": "Western Unit", "PE-287": "Western Unit", "PE-294": "Western Unit", "PE-295": "Western Unit", "PE-301": "Western Unit", "PE-305": "Western Unit", "PE-307": "Western Unit", "PE-308": "Western Unit", "PE-312": "Western Unit", "PE-314": "Western Unit", "PE-319": "Western Unit", "PE-324": "Western Unit", "PE-329": "Western Unit", "PE-331": "Western Unit", "PE-332": "Western Unit", "PE-338": "Western Unit", "PE-345": "Western Unit", "PE-347": "Western Unit", "PE-328": "Western Unit", "PE-368": "Western Unit", "PE-369": "Western Unit", "PE-346": "Western Unit", "PE-359": "Western Unit", "PE-365": "Western Unit", "PE-370": "Western Unit", "PE-380": "Western Unit", "PE-388": "Western Unit", "PE-398": "Western Unit", "PE-391": "Western Unit", "PE-371": "Western Unit", "PE-289": "Infra Unit", "PE-293": "Infra Unit", "PE-303": "Infra Unit"};
-  const COST_FILE='Cost.xlsx';
+  const COST_FILE='WOA OVERALL COSTING-PORTFOLIO REPORT 22-6-26(1).xlsx';
   let unitMap={...STATIC_UNIT_MAP};
   let master=[];
   let selectedUnit='All Units';
@@ -5590,6 +5750,93 @@ body.v103-filtering main.shell > *{visibility:visible!important}
   d.addEventListener('DOMContentLoaded',cleanTypeTooltips,{once:true});
   window.addEventListener('load',cleanTypeTooltips,{once:true});
   cleanTypeTooltips();
+})();
+</script>
+
+
+<style id="v125-main-stable-style">
+#v125VisualFreeze{position:absolute;z-index:2147483600;pointer-events:none;margin:0;padding:0;overflow:hidden;background:#eef5fa}
+body.v125-home-freeze main.shell{visibility:hidden!important}
+body.v125-home-freeze #v125VisualFreeze{visibility:visible!important}
+/* no chart motion during final handoff */
+body.v125-finalize main.shell *,body.v125-finalize main.shell *::before,body.v125-finalize main.shell *::after{transition:none!important;animation:none!important}
+</style>
+<script id="v125-main-stable-script">
+(function(){
+  const d=document;
+  if(window.__v125MainStable)return;window.__v125MainStable=true;
+  const nativeSetTimeout=window.setTimeout.bind(window);
+  let overlay=null, settleTimer=0, hardTimer=0, active=false, lastMutation=0, observer=null;
+
+  function projectSelected(){return !!String(d.getElementById('projectFilter')?.value||'').trim()}
+  function shell(){return d.querySelector('main.shell')}
+  function removeDuplicateIds(root){root?.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'))}
+  function makeSnapshot(){
+    if(active||projectSelected())return;
+    const s=shell();if(!s)return;
+    const rect=s.getBoundingClientRect();
+    overlay=s.cloneNode(true);removeDuplicateIds(overlay);overlay.id='v125VisualFreeze';
+    overlay.style.left=(rect.left+window.scrollX)+'px';overlay.style.top=(rect.top+window.scrollY)+'px';
+    overlay.style.width=rect.width+'px';overlay.style.minHeight=rect.height+'px';
+    d.body.appendChild(overlay);d.body.classList.add('v125-home-freeze');active=true;lastMutation=performance.now();
+    if(observer)observer.disconnect();
+    observer=new MutationObserver(()=>{lastMutation=performance.now();scheduleCheck()});
+    observer.observe(s,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['style','class']});
+    scheduleCheck();
+    clearTimeout(hardTimer);hardTimer=nativeSetTimeout(finish,520);
+  }
+  function scheduleCheck(){
+    clearTimeout(settleTimer);
+    settleTimer=nativeSetTimeout(()=>{
+      if(!active)return;
+      const quiet=performance.now()-lastMutation;
+      if(quiet>=55)finish(); else scheduleCheck();
+    },60);
+  }
+  function finish(){
+    if(!active)return;
+    active=false;clearTimeout(settleTimer);clearTimeout(hardTimer);observer?.disconnect();
+    d.body.classList.add('v125-finalize');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      d.body.classList.remove('v125-home-freeze');overlay?.remove();overlay=null;
+      requestAnimationFrame(()=>d.body.classList.remove('v125-finalize'));
+    }));
+  }
+
+  // Main-page controls only. Project drill-down already has its own stable transaction.
+  d.addEventListener('change',e=>{
+    if(e.target?.matches('#typeFilter,#statusFilter,#regionFilter') && !projectSelected())makeSnapshot();
+    if(e.target?.matches('#projectFilter')){
+      const val=String(e.target.value||'').trim();
+      // Returning from project detail to All Projects is a homepage transaction.
+      if(!val)makeSnapshot();
+    }
+  },true);
+  d.addEventListener('click',e=>{
+    if(e.target?.closest('.v69-unit-tab,#resetFilters,.reset,#v88CriticalCard,#v88bCriticalCard') && !projectSelected())makeSnapshot();
+    if(e.target?.closest('#typeSummary .v34-perf-row,#typeSummary [class*=perf-row]') && !projectSelected())makeSnapshot();
+  },true);
+
+  // Startup: use the existing cover, but release as soon as the DOM is quiet instead of waiting 2.7–3.8 seconds.
+  function fastStartup(){
+    const cover=d.getElementById('v53StartupCover');if(!cover)return;
+    let last=performance.now();
+    const s=shell();
+    const mo=s?new MutationObserver(()=>{last=performance.now()}):null;
+    if(s)mo.observe(s,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['style','class']});
+    const start=performance.now();
+    const tick=()=>{
+      const now=performance.now();
+      if((now-last>85 && now-start>160) || now-start>650){
+        mo?.disconnect();d.body?.classList.add('v53-settled','v125-finalize');cover.classList.add('v53-hide');
+        nativeSetTimeout(()=>cover.remove(),220);requestAnimationFrame(()=>d.body?.classList.remove('v125-finalize'));return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>requestAnimationFrame(fastStartup),{once:true});
+  else requestAnimationFrame(fastStartup);
 })();
 </script>
 
@@ -9253,3 +9500,12 @@ body.v104-filtering .toolbar{pointer-events:auto}
   window.addEventListener('load',sync,{once:true});
 })();
 </script>
+
+
+<script id="v126-stable-startup-arm">
+(function(){
+  const c=window.__v126BootController;
+  if(c)c.arm(()=>{if(typeof window.renderAll==='function')return window.renderAll();});
+})();
+</script>
+
