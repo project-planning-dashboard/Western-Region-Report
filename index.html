@@ -3670,24 +3670,20 @@ body.v53-settled .v35-perf-row:hover{
     setSync('','Syncing Excel…');
     try{
       const [schedule,costing,issues]=await Promise.all([fetchWorkbook(FILES.schedule),fetchWorkbook(FILES.costing),fetchWorkbook(FILES.issues)]);
-      // GitHub must follow the exact same successful sequence as Manual Upload.
+      // GitHub must follow the exact same successful sequence as Manual Upload:
+      // Cost master -> Planning merge -> Issues -> Cost Unit reconciliation -> one final render.
       parseCosting(costing);
       parseSchedule(schedule);
       parseIssues(issues);
-      if(window.__alfanarUnitApi?.updateFromCostWorkbook)window.__alfanarUnitApi.updateFromCostWorkbook(costing);
-      else window.__alfanarUnitApi?.rebuild?.();
+      if(window.__alfanarUnitApi&&typeof window.__alfanarUnitApi.updateFromCostWorkbook==='function')
+        window.__alfanarUnitApi.updateFromCostWorkbook(costing);
+      else if(window.__alfanarUnitApi&&typeof window.__alfanarUnitApi.rebuild==='function')
+        window.__alfanarUnitApi.rebuild();
       if(typeof window.renderAll==='function')window.renderAll();
-      // Project level is authoritative only after the live workbooks are merged.
-      queueMicrotask(()=>{
-        try{window.__v128RenderFinalSchedule?.()}catch(e){}
-        try{window.__v129RenderRemarks?.()}catch(e){}
-        patchProjectsCard();
-      });
-      requestAnimationFrame(()=>{
-        try{window.__v128RenderFinalSchedule?.()}catch(e){}
-        try{window.__v129RenderRemarks?.()}catch(e){}
-      });
-      setSync('ok','Live Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      // Keep the approved project-level composition authoritative after the live-data render.
+      queueMicrotask(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
+      requestAnimationFrame(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
+      setTimeout(patchProjectsCard,250);setSync('ok','Live Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
     }catch(err){console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
   }
   const prev=window.renderAll;
@@ -5771,7 +5767,44 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
 </script>
 
 
-
+<script id="v133-github-parity-final-guard">
+(function(){
+  const d=document,w=window;
+  if(w.__v133GithubParityGuard)return; w.__v133GithubParityGuard=true;
+  const clean=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
+  let busy=false;
+  function selected(){return !!clean(d.getElementById('projectFilter')?.value)}
+  function enforce(){
+    if(busy||!selected())return;
+    const grid=d.getElementById('projectIdentityGrid'); if(!grid)return;
+    busy=true;
+    try{
+      // Only Project Overview is removed. All other approved project sections remain untouched.
+      [...grid.querySelectorAll('.profile-group-v29')].forEach(g=>{
+        const t=clean(g.querySelector('.profile-group-title-v29')?.textContent);
+        if(/^(Project Overview|Project Date Journey)$/i.test(t))g.remove();
+      });
+      // If a late legacy schedule render replaced the final card, restore the approved dates card first.
+      if(!grid.querySelector('.v50-date-card,.v108-no-detail-card')){
+        try{w.__v128RenderFinalSchedule?.()}catch(e){}
+      }
+      // Remarks belong directly under the milestone matrix. Restore only when absent.
+      if(grid.querySelector('.v50-date-card')&&!grid.querySelector('.v104-remarks')){
+        try{w.__v129RenderRemarks?.()}catch(e){}
+      }
+    } finally { busy=false; }
+  }
+  const grid=d.getElementById('projectIdentityGrid');
+  if(grid&&w.MutationObserver){
+    new MutationObserver(()=>queueMicrotask(enforce)).observe(grid,{childList:true,subtree:true});
+  }
+  d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter'))queueMicrotask(enforce)},true);
+  d.addEventListener('click',e=>{if(e.target?.closest('.projectlink,[data-v97-code],#resetFilters,.reset,.v69-unit-tab'))queueMicrotask(enforce)},true);
+  w.addEventListener('load',()=>{enforce();requestAnimationFrame(enforce)},{once:true});
+})();
+</script>
+</body>
+</html>
 
 <style id="v26-style-fixes">
 .kpi{min-height:154px!important;padding:18px 18px 16px!important}
@@ -9432,36 +9465,3 @@ body.v104-filtering .toolbar{pointer-events:auto}
   window.addEventListener('load',sync,{once:true});
 })();
 </script>
-
-
-<script id="v131-github-project-remarks-lock">
-(function(){
-  const w=window,d=document;
-  if(w.__v131RemarksLock)return; w.__v131RemarksLock=true;
-  function projectMode(){return !!String(d.getElementById('projectFilter')?.value||'').trim()}
-  function settle(){
-    if(!projectMode())return;
-    try{w.__v128RenderFinalSchedule?.()}catch(e){}
-    try{w.__v129RenderRemarks?.()}catch(e){}
-  }
-  const oldSchedule=w.__v128RenderFinalSchedule;
-  if(typeof oldSchedule==='function'&&!oldSchedule.__v131Wrapped){
-    const wrapped=function(){const r=oldSchedule.apply(this,arguments);try{w.__v129RenderRemarks?.()}catch(e){}return r};
-    wrapped.__v131Wrapped=true; w.__v128RenderFinalSchedule=wrapped;
-  }
-  d.addEventListener('change',e=>{
-    if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter')){
-      queueMicrotask(settle);requestAnimationFrame(settle);
-    }
-  },true);
-  d.addEventListener('click',e=>{
-    if(e.target?.closest('.projectlink,.v69-unit-tab,#resetFilters,.reset')){
-      queueMicrotask(settle);requestAnimationFrame(settle);
-    }
-  },true);
-  w.addEventListener('load',()=>{queueMicrotask(settle);requestAnimationFrame(settle)},{once:true});
-})();
-</script>
-
-</body>
-</html>
