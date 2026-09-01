@@ -3567,6 +3567,18 @@ body.v53-settled .v35-perf-row:hover{
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
   const val=(row,i)=>row&&i<row.length?row[i]:null;
   const clean=s=>String(s==null?'':s).replace(/\s+/g,' ').trim();
+  const cleanRemark=s=>String(s==null?'':s).replace(/_x000B_/g,'\n').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim();
+  const canonicalCode=v=>{
+    const s=clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+    const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);
+    if(!m)return s.replace(/_/g,'-').replace(/\//g,'-');
+    return `${m[1]}-${String(Number(m[2])).padStart(3,'0')}`;
+  };
+  const validRemark=v=>{
+    const r=cleanRemark(v),x=r.toLowerCase().replace(/[.\s]+$/,'');
+    if(!r)return false;
+    return !['-','--','n/a','na','none','nil','not available','no data','invalid','#n/a','#value!','#ref!'].includes(x);
+  };
   const pct=v=>{if(v==null||v==='')return null;let n=Number(v);if(!Number.isFinite(n))return null;return Math.abs(n)<=1.5?n*100:n};
   const iso=v=>{
     if(!v)return null;
@@ -3576,12 +3588,53 @@ body.v53-settled .v35-perf-row:hover{
   };
   const dayDiff=(a,b)=>{if(!a||!b)return 0;const x=new Date(a),y=new Date(b);return isNaN(x)||isNaN(y)?0:Math.round((x-y)/86400000)};
   function statusClosed(v,pctActual){const s=clean(v).toLowerCase();return s.includes('closed')||Number(pctActual)>=100?'Closed':'Running'}
-  function projectByCode(code){return projects.find(p=>String(p.code)===String(code))}
+  function projectByCode(code){const c=canonicalCode(code);return projects.find(p=>canonicalCode(p.code)===c)}
   function ensureProject(code,name){let p=projectByCode(code);if(!p){p={code,name:name||code,region:'Western',issues:[]};projects.push(p)}return p}
   function westernOnly(){for(let i=projects.length-1;i>=0;i--){if(clean(projects[i].region).toLowerCase()!=='western')projects.splice(i,1)}}
   function sheetRows(wb,name){const ws=wb.Sheets[name]||wb.Sheets[wb.SheetNames[0]];return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null})}
   function parseSchedule(wb){
     try{if(typeof window.__v97UpdateMilestonesFromWorkbook==='function')window.__v97UpdateMilestonesFromWorkbook(wb)}catch(e){console.warn('Milestone workbook parse',e)}
+
+    // v138 — one authoritative LIVE remarks map from the Planning.xlsx fetched on THIS page load.
+    // We keep all previous remark intelligence, but the data source is always the newest online workbook.
+    // Priority: Detailed Update (master) > Marketing-Related Sheet > Updated Progress % + TCC.
+    // If a project appears more than once in a sheet, the LAST valid row wins.
+    const liveRemarks=Object.create(null);
+    const findHeaderCol=(rows,needles,fallback)=>{
+      for(let r=0;r<Math.min(rows.length,8);r++){
+        const row=rows[r]||[];
+        for(let c=0;c<row.length;c++){
+          const h=clean(row[c]).toLowerCase().replace(/\s+/g,' ');
+          if(needles.some(n=>h===n||h.includes(n)))return c;
+        }
+      }
+      return fallback;
+    };
+    const collectRemarks=(sheetName,codeCol,nameCol,remarkCol,priority)=>{
+      const ws=wb.Sheets[sheetName]; if(!ws)return;
+      const rr=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+      const cc=findHeaderCol(rr,['project code'],codeCol);
+      const nc=findHeaderCol(rr,['project name'],nameCol);
+      const rc=findHeaderCol(rr,['remarks','remark'],remarkCol);
+      for(let i=0;i<rr.length;i++){
+        const row=rr[i],code=canonicalCode(val(row,cc));
+        if(!/^[A-Z]{1,5}-\d{3,4}$/.test(code))continue;
+        const remark=cleanRemark(val(row,rc));
+        if(!validRemark(remark))continue;
+        const prev=liveRemarks[code];
+        if(!prev || priority>prev.priority || (priority===prev.priority && i+1>=prev.row)){
+          liveRemarks[code]={remark,name:clean(val(row,nc)),priority,row:i+1,sheet:sheetName};
+        }
+      }
+    };
+    collectRemarks('Updated Progress % + TCC',1,2,15,1);
+    collectRemarks('Marketing-Related Sheet',1,2,23,2);
+    collectRemarks('Detailed Update',1,2,20,3);
+    window.__v137LivePlanningRemarks=liveRemarks;
+    window.__v138LivePlanningRemarks=liveRemarks;
+    window.__v137LivePlanningReady=true;
+    window.__v138LivePlanningReady=true;
+
     // Cost sheet is the master project list. Planning is joined by Project Code only.
     // This intentionally does NOT filter by Planning Region, because Infra Unit projects
     // (e.g. PE-293) can be shown as Southern in the planning workbook while belonging
@@ -3589,7 +3642,7 @@ body.v53-settled .v35-perf-row:hover{
     const rows=sheetRows(wb,'Detailed Update');
     projects.forEach(p=>{p._schedule_present=false});
     for(let r=3;r<rows.length;r++){
-      const row=rows[r],code=clean(val(row,1));
+      const row=rows[r],code=canonicalCode(val(row,1));
       if(!code)continue;
       const p=projectByCode(code);
       if(!p||!p._cost_present)continue;
@@ -3605,9 +3658,16 @@ body.v53-settled .v35-perf-row:hover{
       p.contract_tcc=iso(val(row,11));p.revised_tcc=iso(val(row,12));p.forecast_tcc=iso(val(row,13));p.tcc_variance_days=dayDiff(p.forecast_tcc,p.contract_tcc);
       p.contract_pac=iso(val(row,14));p.revised_pac=iso(val(row,15));p.forecast_pac=iso(val(row,16));
       p.contract_fac=iso(val(row,17));p.revised_fac=iso(val(row,18));p.forecast_fac=iso(val(row,19));
-      p.schedule_remarks=clean(val(row,20));
+      const liveRemark=liveRemarks[code]?.remark||cleanRemark(val(row,20));
+      if(liveRemark&&liveRemark!=='-')p.schedule_remarks=liveRemark;
       p.status=statusClosed(p.status,p.actual_pct);
     }
+    // Also attach valid live remarks to cost-master projects even when a Detailed Update row is absent.
+    projects.forEach(p=>{
+      const code=canonicalCode(p.code),lr=liveRemarks[code]?.remark;
+      if(lr&&lr!=='-')p.schedule_remarks=lr;
+      else if(p._schedule_present)p.schedule_remarks='';
+    });
   }
   function parseCosting(wb){
     const rows=sheetRows(wb,'All');
@@ -3662,7 +3722,13 @@ body.v53-settled .v35-perf-row:hover{
     const closed=data.filter(p=>clean(p.status).toLowerCase()==='closed').length;const running=data.length-closed;
     card.innerHTML=`<label>Projects</label><div class="value">${data.length}</div><div class="sub">${data.length} total loaded</div><div class="v54-project-breakdown"><span class="v54-project-pill running">${running} Running</span><span class="v54-project-pill closed">${closed} Closed</span></div>`;
   }
-  async function fetchWorkbook(file){const url=new URL(file,location.href);url.searchParams.set('v',Date.now());const res=await fetch(url.href,{cache:'no-store'});if(!res.ok)throw new Error(file+' HTTP '+res.status);return XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true})}
+  async function fetchWorkbook(file){
+    const url=new URL(file,location.href);url.searchParams.set('_latest',Date.now());
+    const res=await fetch(url.href,{cache:'no-store',headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}});
+    if(!res.ok)throw new Error(file+' HTTP '+res.status);
+    const wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true});
+    wb.__sourceFile=file;wb.__lastModified=res.headers.get('last-modified')||'';return wb;
+  }
   async function githubSync(){
     addSyncBadge();patchProjectsCard();
     if(location.protocol==='file:'){setSync('','Embedded Data · GitHub sync activates online');return}
@@ -3683,8 +3749,9 @@ body.v53-settled .v35-perf-row:hover{
       // Keep the approved project-level composition authoritative after the live-data render.
       queueMicrotask(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
       requestAnimationFrame(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
-      setTimeout(patchProjectsCard,250);setSync('ok','Live Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-    }catch(err){console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
+      window.__v137LiveSyncSucceeded=true;
+      setTimeout(patchProjectsCard,250);setSync('ok','Latest Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+    }catch(err){window.__v137LiveSyncSucceeded=false;window.__v137LivePlanningReady=false;console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
   }
   const prev=window.renderAll;
   if(typeof prev==='function'&&!window.__v54Wrapped){window.__v54Wrapped=true;window.renderAll=function(){const r=prev.apply(this,arguments);setTimeout(patchProjectsCard,120);return r}}
@@ -5295,7 +5362,7 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    return {received, tone: received?'received':'pending', label: `${code} ${received?'Received':'Not Received'}`};
  }
  function dateItem(label,val,desc,cls,t){return `<div class="v50-date-item ${cls}${cls==='forecast'?' '+t:''}"><div class="v50-lbl">${label}</div><div class="v50-val">${esc(fmt(val))}</div><div class="v50-desc">${esc(desc)}</div></div>`}
- function milestone(code,name,sub,base,rev,fc){const n=diff(fc,base),t=tone(n),r=milestoneReceipt(code,base,rev,fc);return `<div class="v50-milestone ${r.received?'received':''}"><div class="v50-milestone-head"><div class="v50-code">${code}</div><div class="v50-milestone-name"><div class="name">${name}</div><div class="desc">${sub}</div><div class="v50-receipt ${r.tone}">${esc(r.label)}</div></div><div class="v50-delay ${t}">${delay(n)}</div></div><div class="v50-dates">${dateItem('Planned',base,'Contract / baseline date','planned',t)}${dateItem('Revised',rev,'Approved / revised target','revised',t)}${dateItem('Forecast',fc,'Current forecast outlook','forecast',t)}</div></div>`}
+ function milestone(code,name,sub,base,rev,fc){const n=diff(fc,base),t=tone(n);return `<div class="v50-milestone"><div class="v50-milestone-head"><div class="v50-code">${code}</div><div class="v50-milestone-name"><div class="name">${name}</div><div class="desc">${sub}</div></div><div class="v50-delay ${t}">${delay(n)}</div></div><div class="v50-dates">${dateItem('Planned',base,'Contract / baseline date','planned',t)}${dateItem('Revised',rev,'Approved / revised target','revised',t)}${dateItem('Forecast',fc,'Current forecast outlook','forecast',t)}</div></div>`}
  function removeOldRemarksWhenNoData(group){
    if(!group)return;
    group.querySelectorAll('.v92-remarks,.v104-remarks,.v105-remarks,.v87-visible-remarks,.v86-visible-remarks,.v85-planning-remarks,.v79-remarks,.v75-project-remarks').forEach(x=>x.remove());
@@ -5392,12 +5459,14 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
 .v117-receipt-status{display:inline-flex;align-items:center;gap:6px;margin-top:7px;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:950;letter-spacing:.45px;text-transform:uppercase;width:max-content;max-width:100%}
 .v117-receipt-status.received{background:#e7f8ef;color:#138957;border:1px solid #b8e5cd}
 .v117-receipt-status.partial{background:#fff5d8;color:#a97200;border:1px solid #ecd483}
-.v117-receipt-status.not_received{background:#f1f4f7;color:#6b7e90;border:1px solid #d8e1e8}
+.v117-receipt-status.not_received{background:#fff0f0;color:#cf4545;border:1px solid #efbcbc}
 .v117-receipt-status .ico{font-size:11px;line-height:1}
 .v50-milestone.v117-received-card{border-color:#bde4ce!important;background:linear-gradient(180deg,#fff 0%,#f4fbf7 100%)!important;box-shadow:0 8px 18px rgba(18,137,87,.06)}
 .v50-milestone.v117-received-card .v50-code{background:#e6f7ee!important;color:#138957!important}
 .v50-milestone.v117-partial-card{border-color:#ead797!important;background:linear-gradient(180deg,#fff 0%,#fffaf0 100%)!important}
 .v50-milestone.v117-partial-card .v50-code{background:#fff3cf!important;color:#a97200!important}
+.v50-milestone.v117-not-received-card{border-color:#efc1c1!important;background:linear-gradient(180deg,#fff 0%,#fff8f8 100%)!important;box-shadow:0 8px 18px rgba(207,69,69,.05)}
+.v50-milestone.v117-not-received-card .v50-code{background:#fff0f0!important;color:#cf4545!important}
 </style>
 <script id="v117-project-milestone-receipt-script">
 (function(){
@@ -5438,7 +5507,8 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    host.querySelectorAll('.v50-milestone').forEach(card=>{
      const code=clean(card.querySelector('.v50-code')?.textContent).toUpperCase();
      if(!['TCC','PAC','FAC'].includes(code))return;
-     card.classList.remove('v117-received-card','v117-partial-card');
+     card.classList.remove('v117-received-card','v117-partial-card','v117-not-received-card');
+     card.querySelector('.v50-receipt')?.remove();
      card.querySelector('.v117-receipt-status')?.remove();
      const st=closed ? 'received' : (clean(status?.[code]?.status)||'not_received');
      const info=label(code,st);
@@ -5449,6 +5519,7 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
      if(name)name.appendChild(badge);
      if(st==='received')card.classList.add('v117-received-card');
      else if(st==='partial')card.classList.add('v117-partial-card');
+     else card.classList.add('v117-not-received-card');
    });
  }
  let t=0;
@@ -5735,8 +5806,66 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
   w.addEventListener('load',settle,{once:true});
 })();
 </script>
-</body>
-</html>
+
+<style id="v136-single-milestone-status-style">
+/* v136: exactly one status badge per TCC/PAC/FAC milestone. */
+.v50-receipt{display:none!important}
+</style>
+<script id="v136-single-milestone-status-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v136SingleMilestoneStatus)return; w.__v136SingleMilestoneStatus=true;
+  function cleanLegacy(){d.querySelectorAll('.v50-date-card .v50-receipt').forEach(x=>x.remove())}
+  let t=0; function q(){clearTimeout(t);queueMicrotask(cleanLegacy);requestAnimationFrame(cleanLegacy);t=setTimeout(cleanLegacy,120)}
+  const grid=d.getElementById('projectIdentityGrid');
+  if(grid&&w.MutationObserver)new MutationObserver(q).observe(grid,{childList:true,subtree:true});
+  d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter'))q()},true);
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',q,{once:true});else q();
+  w.addEventListener('load',q,{once:true});
+})();
+</script>
+
+<style id="v137-live-remarks-fix-style">
+/* v137 — data-only fix. No layout/design changes. */
+</style>
+<script id="v137-live-remarks-fix-script">
+(function(){
+  const w=window,d=document,clean=v=>String(v??'').replace(/_x000B_/g,'\n').replace(/\r/g,'').trim();
+  function refresh(){
+    const code=clean(d.getElementById('projectFilter')?.value).toUpperCase();
+    if(!code)return;
+    const live=clean(w.__v137LivePlanningRemarks?.[code]?.remark);
+    if(live){
+      const p=Array.isArray(w.projects)?w.projects.find(x=>clean(x?.code).toUpperCase()===code):null;
+      if(p)p.schedule_remarks=live;
+    }
+    try{w.__v129RenderRemarks?.()}catch(e){}
+  }
+  d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter')){queueMicrotask(refresh);setTimeout(refresh,120)}},true);
+  w.addEventListener('load',()=>{setTimeout(refresh,1100);setTimeout(refresh,1900)},{once:true});
+  w.__v137RefreshRemarks=refresh;
+})();
+</script>
+
+<script id="v138-remarks-master-guard-script">
+(function(){
+  const w=window,d=document;
+  const canon=v=>{const s=String(v??'').trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);return m?`${m[1]}-${String(Number(m[2])).padStart(3,'0')}`:s.replace(/[_/]/g,'-')};
+  function refresh(){
+    const code=canon(d.getElementById('projectFilter')?.value||d.querySelector('.profile-code-v29,.identity-code')?.textContent||'');
+    if(!code)return;
+    const live=(w.__v138LivePlanningRemarks||w.__v137LivePlanningRemarks)?.[code];
+    if(live?.remark&&Array.isArray(w.projects)){
+      const p=w.projects.find(x=>canon(x?.code)===code); if(p)p.schedule_remarks=live.remark;
+    }
+    try{w.__v129RenderRemarks?.()}catch(e){}
+  }
+  w.__v138RemarkAudit=function(code){code=canon(code);const src=(w.__v138LivePlanningRemarks||w.__v137LivePlanningRemarks)?.[code]||null;return {code,liveReady:!!(w.__v138LivePlanningReady||w.__v137LivePlanningReady),source:src,project:Array.isArray(w.projects)?w.projects.find(x=>canon(x?.code)===code)||null:null};};
+  d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter')){queueMicrotask(refresh);setTimeout(refresh,100);setTimeout(refresh,350)}},true);
+  w.addEventListener('load',()=>{setTimeout(refresh,1200);setTimeout(refresh,2100)},{once:true});
+})();
+</script>
+
 
 <style id="v26-style-fixes">
 .kpi{min-height:154px!important;padding:18px 18px 16px!important}
@@ -9186,9 +9315,12 @@ body.v104-filtering .toolbar{pointer-events:auto}
    return merged.slice(0,12);
  }
  function remarkFor(code){
-   // Live Planning.xlsx is authoritative when available.
+   // v137: the current Planning.xlsx fetched from GitHub is authoritative.
+   const live=clean(window.__v137LivePlanningRemarks?.[code]?.remark);
+   if(live&&live!=='-')return live;
    const pools=[window.projects,window.portfolio,window.allProjects,window.state?.projects];
    for(const a of pools)if(Array.isArray(a)){const p=a.find(x=>clean(x?.code||x?.project_code).toUpperCase()===code);const r=clean(p?.schedule_remarks||p?.planning_remarks||p?.remarks||p?.remark);if(r&&r!=='-')return r;}
+   if(window.__v137LivePlanningReady)return '';
    const direct=window.__v104DetailedRemarks?.[code]?.remark;
    if(clean(direct)&&clean(direct)!=='-')return clean(direct);
    try{const fb=typeof embeddedRemarks!=='undefined'?embeddedRemarks?.[code]?.remark:'';if(clean(fb)&&clean(fb)!=='-')return clean(fb);}catch(e){}
@@ -9422,13 +9554,19 @@ body.v104-filtering .toolbar{pointer-events:auto}
   if(w.__v135ProjectDetailFix)return; w.__v135ProjectDetailFix=true;
   const clean=v=>String(v??'').replace(/_x000B_/g,'\n').replace(/\r/g,'').trim();
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const canonicalCode=v=>{
+    const s=String(v??'').trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+    const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);
+    return m?`${m[1]}-${String(Number(m[2])).padStart(3,'0')}`:s.replace(/[_/]/g,'-');
+  };
+  const validRemark=v=>{const r=clean(v),x=r.toLowerCase().replace(/[.\s]+$/,'');return !!r&&!['-','--','n/a','na','none','nil','not available','no data','invalid','#n/a','#value!','#ref!'].includes(x)};
   let busy=false, timer=0;
 
   function selectedCode(){
-    const direct=clean(d.getElementById('projectFilter')?.value).toUpperCase();
+    const direct=canonicalCode(d.getElementById('projectFilter')?.value);
     if(direct)return direct;
     const txt=clean(d.querySelector('.profile-code-v29,.identity-code')?.textContent).toUpperCase();
-    const m=txt.match(/(?:PE|EL|PM)-\d{3}/); return m?m[0]:'';
+    const m=txt.match(/(?:PE|EL|PM)[-_/ ]?\d{3,4}/); return m?canonicalCode(m[0]):'';
   }
   function removeOverview(){
     const grid=d.getElementById('projectIdentityGrid'); if(!grid||!selectedCode())return;
@@ -9441,23 +9579,25 @@ body.v104-filtering .toolbar{pointer-events:auto}
     const pools=[w.projects,w.portfolio,w.allProjects,w.state?.projects,w.__projects,w.__allProjects];
     for(const arr of pools){
       if(!Array.isArray(arr))continue;
-      const p=arr.find(x=>clean(x?.code||x?.project_code||x?.projectCode).toUpperCase()===code);
+      const p=arr.find(x=>canonicalCode(x?.code||x?.project_code||x?.projectCode)===code);
       if(p)return p;
     }
     return null;
   }
   function remarkFor(code){
+    code=canonicalCode(code);
+    // Latest fetched Planning.xlsx is authoritative whenever live sync succeeded.
+    const live=clean((w.__v138LivePlanningRemarks||w.__v137LivePlanningRemarks)?.[code]?.remark);
+    if(validRemark(live))return live;
     const p=projectRecord(code);
     for(const v of [p?.schedule_remarks,p?.planning_remarks,p?.remarks,p?.remark]){
-      const r=clean(v); if(r&&r!=='-')return r;
+      const r=clean(v); if(validRemark(r))return r;
     }
-    const v104=clean(w.__v104DetailedRemarks?.[code]?.remark); if(v104&&v104!=='-')return v104;
-    try{
-      if(typeof embeddedRemarks!=='undefined'){
-        const r=clean(embeddedRemarks?.[code]?.remark); if(r&&r!=='-')return r;
-      }
-    }catch(e){}
-    const rmap=clean(w.remarksMap?.[code]?.remark); if(rmap&&rmap!=='-')return rmap;
+    if(w.__v138LivePlanningReady||w.__v137LivePlanningReady)return '';
+    // Embedded remarks are fallback only when the online Planning.xlsx failed to load.
+    const v104=clean(w.__v104DetailedRemarks?.[code]?.remark); if(validRemark(v104))return v104;
+    try{if(typeof embeddedRemarks!=='undefined'){const r=clean(embeddedRemarks?.[code]?.remark);if(validRemark(r))return r;}}catch(e){}
+    const rmap=clean(w.remarksMap?.[code]?.remark); if(validRemark(rmap))return rmap;
     return '';
   }
   function category(t){
@@ -9500,7 +9640,20 @@ body.v104-filtering .toolbar{pointer-events:auto}
     if(pending)append(pending);push();
     const merged=[];
     for(const x0 of out){const x=x0.replace(/\s*\n\s*/g,'\n').trim(), words=x.replace(/\n/g,' ').split(/\s+/).filter(Boolean).length;if(words<4&&merged.length)merged[merged.length-1]+='\n'+x;else if(meaningful(x))merged.push(x)}
-    return merged.slice(0,12);
+    // Preserve the v112-v123 intelligence: suppress duplicate/near-duplicate cards while keeping the fuller sentence.
+    const dedup=[];
+    const norm=t=>t.toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    for(const item of merged){
+      const ni=norm(item); if(!ni)continue;
+      let duplicate=-1;
+      for(let j=0;j<dedup.length;j++){
+        const nj=norm(dedup[j]);
+        if(ni===nj || (Math.min(ni.length,nj.length)>=24 && (ni.includes(nj)||nj.includes(ni)))){duplicate=j;break;}
+      }
+      if(duplicate<0)dedup.push(item);
+      else if(item.length>dedup[duplicate].length)dedup[duplicate]=item;
+    }
+    return dedup.slice(0,12);
   }
   function dateCard(){
     const grid=d.getElementById('projectIdentityGrid'); if(!grid)return null;
@@ -9532,3 +9685,5 @@ body.v104-filtering .toolbar{pointer-events:auto}
   w.addEventListener('load',()=>{queue();setTimeout(enforce,900);setTimeout(enforce,1800)},{once:true});
 })();
 </script>
+</body>
+</html>
