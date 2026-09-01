@@ -632,6 +632,165 @@ tr:hover td{background:#f8fbfd}
 
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<style id="v126-stable-startup-style">
+/* v126 — single-paint startup. The dashboard may prepare and sync underneath,
+   but the user sees one static screen until the final state is committed. */
+html.v126-boot::before{
+  content:"";position:fixed;inset:0;z-index:2147483646;
+  background:linear-gradient(145deg,#eef5fa 0%,#f8fbfe 52%,#eaf3f9 100%);
+  pointer-events:auto;
+}
+html.v126-boot::after{
+  content:"Western Region Portfolio Dashboard\A Preparing latest project data…";
+  white-space:pre;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:2147483647;width:min(430px,calc(100vw - 42px));padding:30px 28px;
+  border:1px solid #d4e4ef;border-radius:24px;background:#fff;
+  box-shadow:0 24px 60px rgba(20,53,83,.13);text-align:center;
+  font-family:Inter,Segoe UI,Arial,sans-serif;font-size:13px;line-height:2;
+  font-weight:750;color:#687d91;letter-spacing:.1px;pointer-events:auto;
+}
+/* Hide legacy animated loaders while v126 owns startup. */
+html.v126-boot #v53StartupCover{display:none!important}
+html.v126-boot body{overflow:hidden!important}
+/* Commit frame: no transitional movement is allowed. */
+body.v126-atomic *,body.v126-atomic *::before,body.v126-atomic *::after{
+  animation:none!important;transition:none!important;scroll-behavior:auto!important;
+}
+</style>
+<script id="v126-stable-startup-core">
+(function(){
+  const w=window,d=document;
+  if(w.__v126BootController)return;
+  d.documentElement.classList.add('v126-boot');
+
+  const native={
+    setTimeout:w.setTimeout.bind(w),clearTimeout:w.clearTimeout.bind(w),
+    setInterval:w.setInterval.bind(w),clearInterval:w.clearInterval.bind(w),
+    raf:w.requestAnimationFrame.bind(w),caf:w.cancelAnimationFrame.bind(w),
+    fetch:typeof w.fetch==='function'?w.fetch.bind(w):null
+  };
+  let batching=true,loaded=false,armed=false,finalizing=false,committed=false;
+  let pendingTasks=0,pendingFetch=0,pendingBodies=0,fakeSeq=91000000;
+  let loadAt=0,lastActivity=performance.now(),finalRender=null,checkHandle=0;
+  const fake=new Map();
+  const touch=()=>{lastActivity=performance.now();};
+
+  function scheduleOne(fn,args,kind){
+    const id=fakeSeq++,state={cancelled:false,real:0,kind};
+    pendingTasks++;touch();fake.set(id,state);
+    state.real=native.setTimeout(()=>{
+      if(state.cancelled)return;
+      fake.delete(id);
+      try{fn(...args)}catch(err){native.setTimeout(()=>{throw err},0)}
+      finally{pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();}
+    },0);
+    return id;
+  }
+  function cancelFake(id){
+    const s=fake.get(id);if(!s)return false;
+    s.cancelled=true;fake.delete(id);native.clearTimeout(s.real);
+    pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();return true;
+  }
+
+  w.setTimeout=function(fn,delay,...args){
+    const ms=Number(delay)||0;
+    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'timeout');
+    return native.setTimeout(fn,delay,...args);
+  };
+  w.clearTimeout=function(id){if(!cancelFake(id))return native.clearTimeout(id)};
+  w.setInterval=function(fn,delay,...args){
+    const ms=Number(delay)||0;
+    /* Startup intervals in this report are legacy re-application loops; one pass is enough. */
+    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'interval');
+    return native.setInterval(fn,delay,...args);
+  };
+  w.clearInterval=function(id){if(!cancelFake(id))return native.clearInterval(id)};
+  w.requestAnimationFrame=function(fn){
+    if(batching&&typeof fn==='function'){
+      /* A future timestamp completes JS count-up/gauge animations in one off-screen frame. */
+      return scheduleOne(()=>fn(performance.now()+6000),[],'raf');
+    }
+    return native.raf(fn);
+  };
+  w.cancelAnimationFrame=function(id){if(!cancelFake(id))return native.caf(id)};
+
+  if(native.fetch){
+    w.fetch=function(input,init){
+      const url=String(typeof input==='string'?input:(input&&input.url)||'');
+      const tracked=/(?:^|\/)(?:Planning|Cost|Issues)\.xlsx(?:\?|$)/i.test(url);
+      if(!tracked)return native.fetch(input,init);
+      pendingFetch++;touch();queueCheck();
+      return native.fetch(input,init).then(res=>{
+        pendingFetch=Math.max(0,pendingFetch-1);touch();
+        if(res&&typeof res.arrayBuffer==='function'){
+          const ab=res.arrayBuffer.bind(res);
+          res.arrayBuffer=function(){
+            pendingBodies++;touch();queueCheck();
+            return ab().finally(()=>{pendingBodies=Math.max(0,pendingBodies-1);touch();queueCheck();});
+          };
+        }
+        queueCheck();return res;
+      },err=>{pendingFetch=Math.max(0,pendingFetch-1);touch();queueCheck();throw err;});
+    };
+  }
+
+  function restoreRuntime(){
+    batching=false;
+    w.setTimeout=native.setTimeout;w.clearTimeout=native.clearTimeout;
+    w.setInterval=native.setInterval;w.clearInterval=native.clearInterval;
+    w.requestAnimationFrame=native.raf;w.cancelAnimationFrame=native.caf;
+    if(native.fetch)w.fetch=native.fetch;
+  }
+  function reveal(){
+    if(committed)return;committed=true;
+    restoreRuntime();
+    try{d.body?.classList.add('v53-settled','v50-stable');}catch(e){}
+    const legacy=d.getElementById('v53StartupCover');if(legacy)legacy.remove();
+    d.documentElement.classList.remove('v126-boot');
+    native.raf(()=>native.raf(()=>d.body?.classList.remove('v126-atomic','v125-finalize','v125-home-freeze')));
+  }
+  function commitFinal(){
+    if(finalizing||committed)return;finalizing=true;
+    d.body?.classList.add('v126-atomic');
+    try{if(typeof finalRender==='function')finalRender();}
+    catch(err){console.warn('v126 final render',err)}
+    finally{finalizing=false;touch();queueCheck();}
+  }
+  function readyToCommit(){
+    if(!armed||!loaded||committed||finalizing)return false;
+    if(pendingFetch||pendingBodies||pendingTasks)return false;
+    if(performance.now()-loadAt<120)return false;
+    if(performance.now()-lastActivity<70)return false;
+    return true;
+  }
+  function queueCheck(){
+    if(committed||!armed)return;
+    native.clearTimeout(checkHandle);
+    checkHandle=native.setTimeout(check,80);
+  }
+  function check(){
+    if(committed)return;
+    if(readyToCommit()){
+      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
+      /* final render and all of its short deferred passes have drained */
+      reveal();return;
+    }
+    /* Safety: never trap the user behind the cover if a remote workbook is unavailable. */
+    if(loaded&&performance.now()-loadAt>12000){
+      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
+      reveal();return;
+    }
+    queueCheck();
+  }
+
+  w.addEventListener('load',()=>{loaded=true;loadAt=performance.now();touch();queueCheck();},{once:true});
+  w.__v126BootController={
+    arm(fn){finalRender=fn;armed=true;queueCheck();},
+    state(){return{loaded,armed,pendingTasks,pendingFetch,pendingBodies,batching,committed}}
+  };
+})();
+</script>
 </head>
 <body>
 <header class="hero">
@@ -3401,9 +3560,9 @@ body.v53-settled .v35-perf-row:hover{
   const d=document;
   const byId=id=>d.getElementById(id);
   const FILES={
-    schedule:'Updated Project Details and Target Status(2).xlsx',
-    costing:'WOA OVERALL COSTING-PORTFOLIO REPORT 22-6-26(1).xlsx',
-    issues:'Al Fanar Issues Log(1).xlsx'
+    schedule:'Planning.xlsx',
+    costing:'Cost.xlsx',
+    issues:'Issues.xlsx'
   };
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
   const val=(row,i)=>row&&i<row.length?row[i]:null;
@@ -3493,7 +3652,7 @@ body.v53-settled .v35-perf-row:hover{
   }
   function addSyncBadge(){
     const actions=d.querySelector('.actions');if(!actions||byId('v54SyncBadge'))return;
-    const badge=d.createElement('div');badge.id='v54SyncBadge';badge.className='v54-sync-badge';badge.innerHTML='<span class="v54-sync-dot"></span><span>Embedded Data</span>';actions.prepend(badge);
+    const badge=d.createElement('div');badge.id='v54SyncBadge';badge.className='v54-sync-badge';badge.innerHTML='<span class="v54-sync-dot"></span><span>Loading live Excel…</span>';actions.prepend(badge);
   }
   function setSync(state,label){const b=byId('v54SyncBadge');if(!b)return;b.className='v54-sync-badge '+state;b.querySelector('span:last-child').textContent=label}
   function patchProjectsCard(){
@@ -3503,7 +3662,7 @@ body.v53-settled .v35-perf-row:hover{
     const closed=data.filter(p=>clean(p.status).toLowerCase()==='closed').length;const running=data.length-closed;
     card.innerHTML=`<label>Projects</label><div class="value">${data.length}</div><div class="sub">${data.length} total loaded</div><div class="v54-project-breakdown"><span class="v54-project-pill running">${running} Running</span><span class="v54-project-pill closed">${closed} Closed</span></div>`;
   }
-  async function fetchWorkbook(file){const res=await fetch(encodeURI(file)+'?v='+Date.now(),{cache:'no-store'});if(!res.ok)throw new Error(file+' '+res.status);return XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true})}
+  async function fetchWorkbook(file){const url=new URL(file,location.href);url.searchParams.set('v',Date.now());const res=await fetch(url.href,{cache:'no-store'});if(!res.ok)throw new Error(file+' HTTP '+res.status);return XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true})}
   async function githubSync(){
     addSyncBadge();patchProjectsCard();
     if(location.protocol==='file:'){setSync('','Embedded Data · GitHub sync activates online');return}
@@ -3511,9 +3670,24 @@ body.v53-settled .v35-perf-row:hover{
     setSync('','Syncing Excel…');
     try{
       const [schedule,costing,issues]=await Promise.all([fetchWorkbook(FILES.schedule),fetchWorkbook(FILES.costing),fetchWorkbook(FILES.issues)]);
-      parseCosting(costing);parseSchedule(schedule);parseIssues(issues);
+      // GitHub must follow the exact same successful sequence as Manual Upload.
+      parseCosting(costing);
+      parseSchedule(schedule);
+      parseIssues(issues);
+      if(window.__alfanarUnitApi?.updateFromCostWorkbook)window.__alfanarUnitApi.updateFromCostWorkbook(costing);
+      else window.__alfanarUnitApi?.rebuild?.();
       if(typeof window.renderAll==='function')window.renderAll();
-      setTimeout(patchProjectsCard,250);setSync('ok','Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      // Project level is authoritative only after the live workbooks are merged.
+      queueMicrotask(()=>{
+        try{window.__v128RenderFinalSchedule?.()}catch(e){}
+        try{window.__v129RenderRemarks?.()}catch(e){}
+        patchProjectsCard();
+      });
+      requestAnimationFrame(()=>{
+        try{window.__v128RenderFinalSchedule?.()}catch(e){}
+        try{window.__v129RenderRemarks?.()}catch(e){}
+      });
+      setSync('ok','Live Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
     }catch(err){console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
   }
   const prev=window.renderAll;
@@ -5233,9 +5407,26 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    if(!group)return;
    group.querySelectorAll('.v92-remarks,.v104-remarks,.v105-remarks,.v87-visible-remarks,.v86-visible-remarks,.v85-planning-remarks,.v79-remarks,.v75-project-remarks').forEach(x=>x.remove());
  }
+ function detailedDatesFor(code){
+   const p=currentProjectRecord();
+   const embedded=(window.__v128EmbeddedDateMap&&window.__v128EmbeddedDateMap[code])||dateMap[code]||{};
+   const pick=(a,b)=>clean(a)||clean(b)||null;
+   return {
+     tcc_contract:pick(p?.contract_tcc,embedded.tcc_contract),
+     tcc_revised:pick(p?.revised_tcc,embedded.tcc_revised),
+     tcc_forecast:pick(p?.forecast_tcc,embedded.tcc_forecast),
+     pac_contract:pick(p?.contract_pac,embedded.pac_contract),
+     pac_revised:pick(p?.revised_pac,embedded.pac_revised),
+     pac_forecast:pick(p?.forecast_pac,embedded.pac_forecast),
+     fac_contract:pick(p?.contract_fac,embedded.fac_contract),
+     fac_revised:pick(p?.revised_fac,embedded.fac_revised),
+     fac_forecast:pick(p?.forecast_fac,embedded.fac_forecast),
+     eot_status:pick(p?.eot_status,embedded.eot_status)||'N/A'
+   };
+ }
  function renderFinalSchedule(){
    const code=projectCode(), group=scheduleGroup(); if(!code||!group)return;
-   const x=dateMap[code];
+   const x=detailedDatesFor(code);
    group.classList.add('v108-schedule-group','v108-ready','v50-dates-full');
    const oldHead=group.querySelector('.profile-group-head-v29');
    const head=oldHead?oldHead.cloneNode(true):null;
@@ -5258,6 +5449,7 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    const eot=clean(x.eot_status)||'Not Available';
    group.insertAdjacentHTML('beforeend',`<div class="v50-date-card"><div class="v50-date-top"><div class="v50-date-title"><div class="eyebrow">Integrated Schedule View</div><div class="headline">Planned, Revised and Forecast Milestone Dates</div><div class="sub">One consolidated visual for TCC, PAC and FAC based on Updated Project Details.</div></div><div class="v50-eot ${eotTone(eot)}"><div class="eyebrow">Extension of Time</div><div class="value">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div></div><div class="v50-date-matrix">${milestone('TCC','Taking-Over / Completion','Contractual completion milestone',x.tcc_contract,x.tcc_revised,x.tcc_forecast)}${milestone('PAC','Provisional Acceptance','Provisional acceptance milestone',x.pac_contract,x.pac_revised,x.pac_forecast)}${milestone('FAC','Final Acceptance','Final acceptance / overall project milestone',x.fac_contract,x.fac_revised,x.fac_forecast)}</div></div>`);
  }
+ window.__v128RenderFinalSchedule=renderFinalSchedule;
  function finalizeNow(){
    d.body?.classList.add('v50-stable');
    d.body?.classList.remove('v103-filtering','v104-filtering','v106-filtering');
@@ -5536,152 +5728,50 @@ body.v103-filtering main.shell > *{visibility:visible!important}
 })();
 </script>
 
-<script id="v124-remove-project-type-tooltip">
-(function(){
-  const d=document;
-
-  function cleanTypeTooltips(){
-    const host=d.getElementById('typeSummary');
-    if(!host) return;
-
-    host.querySelectorAll('*').forEach(el=>{
-      el.removeAttribute('title');
-      el.removeAttribute('data-v73-detail-ready');
-      el.removeAttribute('data-v73-type');
-      el.removeAttribute('data-v73-title');
-      el.removeAttribute('data-v73-detail');
-      el.removeAttribute('data-v73-meta');
-      el.classList.remove('v73-hover-detail','v72-hover-detail');
-    });
-
-    ['v55ProjectTooltip','v72GlobalPopup','v73GlobalPopup','v95ExactPopup'].forEach(id=>{
-      const tip=d.getElementById(id);
-      if(tip) tip.classList.remove('show');
-    });
-  }
-
-  function hideTooltipIfTypeSection(e){
-    if(!e.target.closest?.('#typeSummary')) return;
-    ['v55ProjectTooltip','v72GlobalPopup','v73GlobalPopup','v95ExactPopup'].forEach(id=>{
-      const tip=d.getElementById(id);
-      if(tip) tip.classList.remove('show');
-    });
-  }
-
-  d.addEventListener('mouseover',hideTooltipIfTypeSection,true);
-  d.addEventListener('mousemove',hideTooltipIfTypeSection,true);
-
-  const host=d.getElementById('typeSummary');
-  if(host){
-    new MutationObserver(cleanTypeTooltips).observe(host,{childList:true,subtree:true,attributes:true,attributeFilter:['title','data-v73-detail-ready']});
-  }
-
-  const prev=window.renderAll;
-  if(typeof prev==='function' && !window.__v124Wrapped){
-    window.__v124Wrapped=true;
-    window.renderAll=function(){
-      const r=prev.apply(this,arguments);
-      cleanTypeTooltips();
-      queueMicrotask(cleanTypeTooltips);
-      return r;
-    };
-  }
-
-  d.addEventListener('DOMContentLoaded',cleanTypeTooltips,{once:true});
-  window.addEventListener('load',cleanTypeTooltips,{once:true});
-  cleanTypeTooltips();
-})();
-</script>
-
-
-<style id="v125-main-stable-style">
-#v125VisualFreeze{position:absolute;z-index:2147483600;pointer-events:none;margin:0;padding:0;overflow:hidden;background:#eef5fa}
-body.v125-home-freeze main.shell{visibility:hidden!important}
-body.v125-home-freeze #v125VisualFreeze{visibility:visible!important}
-/* no chart motion during final handoff */
-body.v125-finalize main.shell *,body.v125-finalize main.shell *::before,body.v125-finalize main.shell *::after{transition:none!important;animation:none!important}
+<style id="v129-v123-reference-guard-style">
+/* v129: preserve v123 project-detail composition exactly. */
+body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-remove{display:none!important}
 </style>
-<script id="v125-main-stable-script">
+<script id="v129-v123-reference-guard-script">
 (function(){
-  const d=document;
-  if(window.__v125MainStable)return;window.__v125MainStable=true;
-  const nativeSetTimeout=window.setTimeout.bind(window);
-  let overlay=null, settleTimer=0, hardTimer=0, active=false, lastMutation=0, observer=null;
-
-  function projectSelected(){return !!String(d.getElementById('projectFilter')?.value||'').trim()}
-  function shell(){return d.querySelector('main.shell')}
-  function removeDuplicateIds(root){root?.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'))}
-  function makeSnapshot(){
-    if(active||projectSelected())return;
-    const s=shell();if(!s)return;
-    const rect=s.getBoundingClientRect();
-    overlay=s.cloneNode(true);removeDuplicateIds(overlay);overlay.id='v125VisualFreeze';
-    overlay.style.left=(rect.left+window.scrollX)+'px';overlay.style.top=(rect.top+window.scrollY)+'px';
-    overlay.style.width=rect.width+'px';overlay.style.minHeight=rect.height+'px';
-    d.body.appendChild(overlay);d.body.classList.add('v125-home-freeze');active=true;lastMutation=performance.now();
-    if(observer)observer.disconnect();
-    observer=new MutationObserver(()=>{lastMutation=performance.now();scheduleCheck()});
-    observer.observe(s,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['style','class']});
-    scheduleCheck();
-    clearTimeout(hardTimer);hardTimer=nativeSetTimeout(finish,520);
-  }
-  function scheduleCheck(){
-    clearTimeout(settleTimer);
-    settleTimer=nativeSetTimeout(()=>{
-      if(!active)return;
-      const quiet=performance.now()-lastMutation;
-      if(quiet>=55)finish(); else scheduleCheck();
-    },60);
-  }
-  function finish(){
-    if(!active)return;
-    active=false;clearTimeout(settleTimer);clearTimeout(hardTimer);observer?.disconnect();
-    d.body.classList.add('v125-finalize');
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      d.body.classList.remove('v125-home-freeze');overlay?.remove();overlay=null;
-      requestAnimationFrame(()=>d.body.classList.remove('v125-finalize'));
-    }));
-  }
-
-  // Main-page controls only. Project drill-down already has its own stable transaction.
-  d.addEventListener('change',e=>{
-    if(e.target?.matches('#typeFilter,#statusFilter,#regionFilter') && !projectSelected())makeSnapshot();
-    if(e.target?.matches('#projectFilter')){
-      const val=String(e.target.value||'').trim();
-      // Returning from project detail to All Projects is a homepage transaction.
-      if(!val)makeSnapshot();
-    }
-  },true);
-  d.addEventListener('click',e=>{
-    if(e.target?.closest('.v69-unit-tab,#resetFilters,.reset,#v88CriticalCard,#v88bCriticalCard') && !projectSelected())makeSnapshot();
-    if(e.target?.closest('#typeSummary .v34-perf-row,#typeSummary [class*=perf-row]') && !projectSelected())makeSnapshot();
-  },true);
-
-  // Startup: use the existing cover, but release as soon as the DOM is quiet instead of waiting 2.7–3.8 seconds.
-  function fastStartup(){
-    const cover=d.getElementById('v53StartupCover');if(!cover)return;
-    let last=performance.now();
-    const s=shell();
-    const mo=s?new MutationObserver(()=>{last=performance.now()}):null;
-    if(s)mo.observe(s,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['style','class']});
-    const start=performance.now();
-    const tick=()=>{
-      const now=performance.now();
-      if((now-last>85 && now-start>160) || now-start>650){
-        mo?.disconnect();d.body?.classList.add('v53-settled','v125-finalize');cover.classList.add('v53-hide');
-        nativeSetTimeout(()=>cover.remove(),220);requestAnimationFrame(()=>d.body?.classList.remove('v125-finalize'));return;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>requestAnimationFrame(fastStartup),{once:true});
-  else requestAnimationFrame(fastStartup);
+ const d=document, clean=s=>String(s==null?'':s).replace(/\s+/g,' ').trim();
+ function selected(){return !!clean(d.getElementById('projectFilter')?.value)}
+ function removeOverview(){
+   const grid=d.getElementById('projectIdentityGrid');
+   d.body?.classList.toggle('v129-project-mode',selected());
+   if(!grid||!selected())return;
+   [...grid.querySelectorAll('.profile-group-v29')].forEach(g=>{
+     const title=clean(g.querySelector('.profile-group-title-v29')?.textContent);
+     if(/^(Project Overview|Project Date Journey)$/i.test(title))g.remove();
+   });
+ }
+ function enforce(){
+   removeOverview();
+   if(!selected())return;
+   try{if(typeof window.__v129RenderRemarks==='function')window.__v129RenderRemarks();}catch(e){console.warn('v129 remarks refresh',e)}
+ }
+ const prev=window.renderAll;
+ if(typeof prev==='function'&&!window.__v129ReferenceWrapped){
+   window.__v129ReferenceWrapped=true;
+   window.renderAll=function(){const r=prev.apply(this,arguments);enforce();queueMicrotask(enforce);return r;};
+   try{renderAll=window.renderAll}catch(e){}
+ }
+ ['projectFilter','typeFilter','statusFilter','regionFilter'].forEach(id=>d.getElementById(id)?.addEventListener('change',()=>queueMicrotask(enforce),true));
+ const grid=d.getElementById('projectIdentityGrid');
+ if(grid&&window.MutationObserver){let busy=false;new MutationObserver(()=>{if(busy)return;busy=true;removeOverview();busy=false}).observe(grid,{childList:true,subtree:true});}
+ if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',enforce,{once:true});else enforce();
+ window.addEventListener('load',()=>{enforce();requestAnimationFrame(enforce)},{once:true});
+})();
+</script>
+<script id="v126-stable-startup-arm">
+(function(){
+  const c=window.__v126BootController;
+  if(c)c.arm(()=>{if(typeof window.renderAll==='function')return window.renderAll();});
 })();
 </script>
 
-</body>
-</html>
+
+
 
 <style id="v26-style-fixes">
 .kpi{min-height:154px!important;padding:18px 18px 16px!important}
@@ -9131,11 +9221,12 @@ body.v104-filtering .toolbar{pointer-events:auto}
    return merged.slice(0,12);
  }
  function remarkFor(code){
+   // Live Planning.xlsx is authoritative when available.
+   const pools=[window.projects,window.portfolio,window.allProjects,window.state?.projects];
+   for(const a of pools)if(Array.isArray(a)){const p=a.find(x=>clean(x?.code||x?.project_code).toUpperCase()===code);const r=clean(p?.schedule_remarks||p?.planning_remarks||p?.remarks||p?.remark);if(r&&r!=='-')return r;}
    const direct=window.__v104DetailedRemarks?.[code]?.remark;
    if(clean(direct)&&clean(direct)!=='-')return clean(direct);
    try{const fb=typeof embeddedRemarks!=='undefined'?embeddedRemarks?.[code]?.remark:'';if(clean(fb)&&clean(fb)!=='-')return clean(fb);}catch(e){}
-   const pools=[window.projects,window.portfolio,window.allProjects,window.state?.projects];
-   for(const a of pools)if(Array.isArray(a)){const p=a.find(x=>clean(x?.code||x?.project_code).toUpperCase()===code);const r=clean(p?.schedule_remarks||p?.planning_remarks||p?.remarks||p?.remark);if(r&&r!=='-')return r;}
    return '';
  }
  function renderRemarks(){
@@ -9145,6 +9236,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
    box.innerHTML=`<div class="v104-head"><div class="v104-title"><span class="ico">✎</span><span>Remarks</span></div><span class="v104-badge">PLANNING</span></div>${items.length?`<div class="v104-grid">${items.map((x,i)=>`<div class="v104-item"><div class="v104-item-head"><div class="v104-point">Point ${i+1}</div><span class="v104-cat">${esc(category(x))}</span></div><div class="v104-body">${esc(x)}</div></div>`).join('')}</div>`:'<div class="v104-empty">No planning remarks available for this project.</div>'}`;
    const matrix=host.querySelector('.v50-date-matrix');if(matrix)matrix.insertAdjacentElement('afterend',box);else host.appendChild(box);
  }
+ window.__v129RenderRemarks=renderRemarks;
  let rt=0;function queueRemarks(){clearTimeout(rt);renderRemarks();rt=setTimeout(renderRemarks,120);setTimeout(renderRemarks,420);}
  const prev=window.renderAll;if(typeof prev==='function'&&!window.__v104Wrap){window.__v104Wrap=true;window.renderAll=function(){const r=prev.apply(this,arguments);instant();queueRemarks();return r;};}
  d.getElementById('projectFilter')?.addEventListener('change',queueRemarks);
@@ -9340,3 +9432,36 @@ body.v104-filtering .toolbar{pointer-events:auto}
   window.addEventListener('load',sync,{once:true});
 })();
 </script>
+
+
+<script id="v131-github-project-remarks-lock">
+(function(){
+  const w=window,d=document;
+  if(w.__v131RemarksLock)return; w.__v131RemarksLock=true;
+  function projectMode(){return !!String(d.getElementById('projectFilter')?.value||'').trim()}
+  function settle(){
+    if(!projectMode())return;
+    try{w.__v128RenderFinalSchedule?.()}catch(e){}
+    try{w.__v129RenderRemarks?.()}catch(e){}
+  }
+  const oldSchedule=w.__v128RenderFinalSchedule;
+  if(typeof oldSchedule==='function'&&!oldSchedule.__v131Wrapped){
+    const wrapped=function(){const r=oldSchedule.apply(this,arguments);try{w.__v129RenderRemarks?.()}catch(e){}return r};
+    wrapped.__v131Wrapped=true; w.__v128RenderFinalSchedule=wrapped;
+  }
+  d.addEventListener('change',e=>{
+    if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter')){
+      queueMicrotask(settle);requestAnimationFrame(settle);
+    }
+  },true);
+  d.addEventListener('click',e=>{
+    if(e.target?.closest('.projectlink,.v69-unit-tab,#resetFilters,.reset')){
+      queueMicrotask(settle);requestAnimationFrame(settle);
+    }
+  },true);
+  w.addEventListener('load',()=>{queueMicrotask(settle);requestAnimationFrame(settle)},{once:true});
+})();
+</script>
+
+</body>
+</html>
