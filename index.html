@@ -9397,3 +9397,138 @@ body.v104-filtering .toolbar{pointer-events:auto}
   window.addEventListener('load',sync,{once:true});
 })();
 </script>
+
+
+<style id="v135-final-project-detail-fix-style">
+/* v135 — final project-detail contract: no Project Overview card; remarks live directly below milestone matrix. */
+#projectIdentityGrid .v135-hide-overview{display:none!important}
+.v135-remarks{margin-top:14px;border:1px solid #cddfeb;border-left:5px solid #176db3;border-radius:18px;padding:14px 16px;background:linear-gradient(135deg,#fff 0%,#f6faff 100%)}
+.v135-remarks-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #dce8f1}
+.v135-remarks-title{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:950;color:#173b60}
+.v135-remarks-title .ico{width:30px;height:30px;border-radius:9px;background:#e8f3fb;color:#176db3;display:grid;place-items:center}
+.v135-remarks-badge{padding:5px 9px;border-radius:999px;background:#eaf4fc;color:#176db3;font-size:9px;font-weight:950;letter-spacing:.55px}
+.v135-remarks-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.v135-remark-item{border:1px solid #d7e5ef;border-radius:14px;padding:11px 12px;background:#fff;min-width:0}
+.v135-remark-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.v135-point{font-size:10px;font-weight:950;letter-spacing:.65px;text-transform:uppercase;color:#173b60}
+.v135-cat{font-size:9px;font-weight:900;padding:4px 8px;border-radius:999px;background:#edf5fb;color:#176db3;white-space:nowrap}
+.v135-body{font-size:12px;line-height:1.52;font-weight:700;color:#4d6478;white-space:pre-line}
+.v135-empty{margin-top:11px;font-size:12px;font-weight:750;color:#8797a6;font-style:italic}
+@media(max-width:1050px){.v135-remarks-grid{grid-template-columns:1fr}}
+</style>
+<script id="v135-final-project-detail-fix-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v135ProjectDetailFix)return; w.__v135ProjectDetailFix=true;
+  const clean=v=>String(v??'').replace(/_x000B_/g,'\n').replace(/\r/g,'').trim();
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  let busy=false, timer=0;
+
+  function selectedCode(){
+    const direct=clean(d.getElementById('projectFilter')?.value).toUpperCase();
+    if(direct)return direct;
+    const txt=clean(d.querySelector('.profile-code-v29,.identity-code')?.textContent).toUpperCase();
+    const m=txt.match(/(?:PE|EL|PM)-\d{3}/); return m?m[0]:'';
+  }
+  function removeOverview(){
+    const grid=d.getElementById('projectIdentityGrid'); if(!grid||!selectedCode())return;
+    [...grid.querySelectorAll('.profile-group-v29')].forEach(g=>{
+      const t=clean(g.querySelector('.profile-group-title-v29')?.textContent);
+      if(/^Project Overview$/i.test(t)) g.remove();
+    });
+  }
+  function projectRecord(code){
+    const pools=[w.projects,w.portfolio,w.allProjects,w.state?.projects,w.__projects,w.__allProjects];
+    for(const arr of pools){
+      if(!Array.isArray(arr))continue;
+      const p=arr.find(x=>clean(x?.code||x?.project_code||x?.projectCode).toUpperCase()===code);
+      if(p)return p;
+    }
+    return null;
+  }
+  function remarkFor(code){
+    const p=projectRecord(code);
+    for(const v of [p?.schedule_remarks,p?.planning_remarks,p?.remarks,p?.remark]){
+      const r=clean(v); if(r&&r!=='-')return r;
+    }
+    const v104=clean(w.__v104DetailedRemarks?.[code]?.remark); if(v104&&v104!=='-')return v104;
+    try{
+      if(typeof embeddedRemarks!=='undefined'){
+        const r=clean(embeddedRemarks?.[code]?.remark); if(r&&r!=='-')return r;
+      }
+    }catch(e){}
+    const rmap=clean(w.remarksMap?.[code]?.remark); if(rmap&&rmap!=='-')return rmap;
+    return '';
+  }
+  function category(t){
+    const x=t.toLowerCase();
+    if(/eot|tcc|pac|fac|extension|claim/.test(x))return 'Contract / Milestones';
+    if(/approval|approve|review|submittal|comment|sec|client|consultant|fec|hsse/.test(x))return 'Approvals / Client';
+    if(/material|delivery|supplier|shipment|dwdm|panel|equipment|po\b/.test(x))return 'Material / Delivery';
+    if(/test|testing|commission|integration|telecom|ict|mpls|sip/.test(x))return 'Testing / Interface';
+    if(/manpower|mobiliz|construction|installation|civil|works|progress/.test(x))return 'Execution / Progress';
+    return 'Project Action';
+  }
+  function smartItems(raw){
+    let source=clean(raw); if(!source||source==='-')return [];
+    source=source.replace(/[\t]+/g,' ')
+      .replace(/\s+(?=(?:[1-9]|1[0-5])\)\s*[A-Za-z])/g,'\n')
+      .replace(/\s+(?=(?:[1-9]|1[0-5])-\s+[A-Za-z])/g,'\n')
+      .replace(/\s+(?=(?:[1-9]|1[0-5])\.\s*[A-Z][A-Za-z])/g,'\n');
+    const lines=source.split(/\n+/).map(x=>x.trim()).filter(Boolean), out=[];
+    let cur=null,pending='';
+    const meaningful=t=>t&&t.trim().length>=10&&t.trim().split(/\s+/).length>=2;
+    const push=()=>{if(cur&&meaningful(cur.text))out.push(cur.text.trim());cur=null};
+    const start=(group,t)=>{push();const pref=pending?pending+' ':'';pending='';cur={group,text:(pref+t).trim()}};
+    const append=t=>{if(!t)return;if(cur)cur.text+=(cur.text?'\n':'')+t.trim();else cur={group:'p',text:t.trim()}};
+    for(const original of lines){
+      let line=original.replace(/^[•▪◦]+\s*/,'').trim(); if(!line)continue;
+      const numbered=line.match(/^((?:[1-9]|1[0-5]))(?:\s*\)\s*|\.\s*|\s+-\s+)([A-Za-z].*)$/);
+      const sub=line.match(/^(\d{1,2})\.(\d{1,2})\s*(?:\)|\.|-)?\s*(.+)$/);
+      const bullet=line.match(/^[-*]\s*(.+)$/);
+      if(sub){const g=sub[1],t=`${sub[1]}.${sub[2]} ${sub[3].trim()}`;if(cur&&cur.group===`sub-${g}`)append(t);else start(`sub-${g}`,t);continue}
+      if(numbered){start(`num-${numbered[1]}`,numbered[2].trim());continue}
+      if(bullet){start('bullet',bullet[1].trim());continue}
+      if(/:$/.test(line)&&line.length<80){push();pending=line;continue}
+      if(/^[,;:)\-–—]+\s*/.test(line)||/^(?:under|pending|awaiting|subject to|dependent on|with|and|but|while|which|where|due to)\b/i.test(line)){append(line.replace(/^[,;:)\-–—]+\s*/,''));continue}
+      const theme=/^(?:EOT\b|Time Extension\b|Remote End Works\b|Punchlist\b|Punch\s*points?\b|As[- ]?built\b|TCC\b|PAC\b|FAC\b|Energization\b|For Civil Works\b|For Electrical Installation\b|Civil Works\b|Electrical Installation\b|Current Issues\b|Change Order\b|Outdoor Works Permit\b|Tank No\.?\b|Neutralization Pit\b|NAOH\b)/i.test(line);
+      if(theme){const pf=/^(?:Punchlist\b|Punch\s*points?\b|As[- ]?built\b)/i.test(line), cp=cur&&/(?:Punchlist|Punch\s*points?|As[- ]?built)/i.test(cur.text);if(pf&&cp)append(line);else start('theme',line);continue}
+      const full=/[.!?;]$/.test(line)&&line.split(/\s+/).length>=7;
+      if(full&&cur&&/[.!?;]$/.test(cur.text.trim())&&cur.text.split(/\s+/).length>=8){start('sentence',line);continue}
+      append(line);
+    }
+    if(pending)append(pending);push();
+    const merged=[];
+    for(const x0 of out){const x=x0.replace(/\s*\n\s*/g,'\n').trim(), words=x.replace(/\n/g,' ').split(/\s+/).filter(Boolean).length;if(words<4&&merged.length)merged[merged.length-1]+='\n'+x;else if(meaningful(x))merged.push(x)}
+    return merged.slice(0,12);
+  }
+  function dateCard(){
+    const grid=d.getElementById('projectIdentityGrid'); if(!grid)return null;
+    const visible=[...grid.querySelectorAll('.v50-date-card')].find(x=>x.offsetParent!==null);
+    if(visible)return visible;
+    return grid.querySelector('.v50-date-card');
+  }
+  function renderRemarks(){
+    const code=selectedCode(), host=dateCard(); if(!code||!host)return;
+    // Remove every old remarks implementation so only one approved card remains.
+    host.querySelectorAll('.v104-remarks,.v135-remarks,.v92-remarks,.v89-remarks,.v87-visible-remarks,.v86-visible-remarks,.v85-planning-remarks,.v84-schedule-remarks,.v83-remarks,.v81-schedule-remarks,.v75-project-remarks').forEach(x=>x.remove());
+    const raw=remarkFor(code), items=smartItems(raw), box=d.createElement('div'); box.className='v135-remarks';
+    box.innerHTML=`<div class="v135-remarks-head"><div class="v135-remarks-title"><span class="ico">✎</span><span>Remarks</span></div><span class="v135-remarks-badge">PLANNING</span></div>${items.length?`<div class="v135-remarks-grid">${items.map((x,i)=>`<div class="v135-remark-item"><div class="v135-remark-head"><div class="v135-point">Point ${i+1}</div><span class="v135-cat">${esc(category(x))}</span></div><div class="v135-body">${esc(x)}</div></div>`).join('')}</div>`:'<div class="v135-empty">No planning remarks available for this project.</div>'}`;
+    const matrix=host.querySelector('.v50-date-matrix');
+    if(matrix)matrix.insertAdjacentElement('afterend',box);else host.appendChild(box);
+  }
+  function enforce(){
+    if(busy)return; busy=true;
+    try{removeOverview(); if(selectedCode())renderRemarks();}finally{busy=false}
+  }
+  function queue(){clearTimeout(timer);queueMicrotask(enforce);requestAnimationFrame(enforce);timer=setTimeout(enforce,120);setTimeout(enforce,420)}
+  const grid=d.getElementById('projectIdentityGrid');
+  if(grid&&w.MutationObserver)new MutationObserver(()=>queue()).observe(grid,{childList:true,subtree:true});
+  d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter'))queue()},true);
+  d.addEventListener('click',e=>{if(e.target?.closest('.projectlink,[data-v97-code],#resetFilters,.reset,.v69-unit-tab'))queue()},true);
+  const prev=w.renderAll;
+  if(typeof prev==='function'&&!w.__v135RenderWrapped){w.__v135RenderWrapped=true;w.renderAll=function(){const r=prev.apply(this,arguments);queue();return r};try{renderAll=w.renderAll}catch(e){}}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',queue,{once:true});else queue();
+  w.addEventListener('load',()=>{queue();setTimeout(enforce,900);setTimeout(enforce,1800)},{once:true});
+})();
+</script>
