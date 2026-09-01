@@ -632,167 +632,6 @@ tr:hover td{background:#f8fbfd}
 
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-
-<style id="v126-stable-startup-style">
-/* v126 — single-paint startup. The dashboard may prepare and sync underneath,
-   but the user sees one static screen until the final state is committed. */
-html.v126-boot::before{
-  content:"";position:fixed;inset:0;z-index:2147483646;
-  background:linear-gradient(145deg,#eef5fa 0%,#f8fbfe 52%,#eaf3f9 100%);
-  pointer-events:auto;
-}
-html.v126-boot::after{
-  content:"Western Region Portfolio Dashboard\A Preparing latest project data…";
-  white-space:pre;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-  z-index:2147483647;width:min(430px,calc(100vw - 42px));padding:30px 28px;
-  border:1px solid #d4e4ef;border-radius:24px;background:#fff;
-  box-shadow:0 24px 60px rgba(20,53,83,.13);text-align:center;
-  font-family:Inter,Segoe UI,Arial,sans-serif;font-size:13px;line-height:2;
-  font-weight:750;color:#687d91;letter-spacing:.1px;pointer-events:auto;
-}
-/* Hide legacy animated loaders while v126 owns startup. */
-html.v126-boot #v53StartupCover{display:none!important}
-html.v126-boot body{overflow:hidden!important}
-/* Commit frame: no transitional movement is allowed. */
-body.v126-atomic *,body.v126-atomic *::before,body.v126-atomic *::after{
-  animation:none!important;transition:none!important;scroll-behavior:auto!important;
-}
-</style>
-<script id="v126-stable-startup-core">
-(function(){
-  const w=window,d=document;
-  if(w.__v126BootController)return;
-  d.documentElement.classList.add('v126-boot');
-
-  const native={
-    setTimeout:w.setTimeout.bind(w),clearTimeout:w.clearTimeout.bind(w),
-    setInterval:w.setInterval.bind(w),clearInterval:w.clearInterval.bind(w),
-    raf:w.requestAnimationFrame.bind(w),caf:w.cancelAnimationFrame.bind(w),
-    fetch:typeof w.fetch==='function'?w.fetch.bind(w):null
-  };
-  let batching=true,loaded=false,armed=false,finalizing=false,committed=false;
-  let pendingTasks=0,pendingFetch=0,pendingBodies=0,fakeSeq=91000000;
-  let loadAt=0,lastActivity=performance.now(),finalRender=null,checkHandle=0;
-  const fake=new Map();
-  const touch=()=>{lastActivity=performance.now();};
-
-  function scheduleOne(fn,args,kind){
-    const id=fakeSeq++,state={cancelled:false,real:0,kind};
-    pendingTasks++;touch();fake.set(id,state);
-    state.real=native.setTimeout(()=>{
-      if(state.cancelled)return;
-      fake.delete(id);
-      try{fn(...args)}catch(err){native.setTimeout(()=>{throw err},0)}
-      finally{pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();}
-    },0);
-    return id;
-  }
-  function cancelFake(id){
-    const s=fake.get(id);if(!s)return false;
-    s.cancelled=true;fake.delete(id);native.clearTimeout(s.real);
-    pendingTasks=Math.max(0,pendingTasks-1);touch();queueCheck();return true;
-  }
-
-  w.setTimeout=function(fn,delay,...args){
-    const ms=Number(delay)||0;
-    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'timeout');
-    return native.setTimeout(fn,delay,...args);
-  };
-  w.clearTimeout=function(id){if(!cancelFake(id))return native.clearTimeout(id)};
-  w.setInterval=function(fn,delay,...args){
-    const ms=Number(delay)||0;
-    /* Startup intervals in this report are legacy re-application loops; one pass is enough. */
-    if(batching&&typeof fn==='function'&&ms<=5000)return scheduleOne(fn,args,'interval');
-    return native.setInterval(fn,delay,...args);
-  };
-  w.clearInterval=function(id){if(!cancelFake(id))return native.clearInterval(id)};
-  w.requestAnimationFrame=function(fn){
-    if(batching&&typeof fn==='function'){
-      /* A future timestamp completes JS count-up/gauge animations in one off-screen frame. */
-      return scheduleOne(()=>fn(performance.now()+6000),[],'raf');
-    }
-    return native.raf(fn);
-  };
-  w.cancelAnimationFrame=function(id){if(!cancelFake(id))return native.caf(id)};
-
-  if(native.fetch){
-    w.fetch=function(input,init){
-      const url=String(typeof input==='string'?input:(input&&input.url)||'');
-      const tracked=/(?:^|\/)(?:Planning|Cost|Issues)\.xlsx(?:\?|$)/i.test(url);
-      if(!tracked)return native.fetch(input,init);
-      pendingFetch++;touch();queueCheck();
-      return native.fetch(input,init).then(res=>{
-        pendingFetch=Math.max(0,pendingFetch-1);touch();
-        if(res&&typeof res.arrayBuffer==='function'){
-          const ab=res.arrayBuffer.bind(res);
-          res.arrayBuffer=function(){
-            pendingBodies++;touch();queueCheck();
-            return ab().finally(()=>{pendingBodies=Math.max(0,pendingBodies-1);touch();queueCheck();});
-          };
-        }
-        queueCheck();return res;
-      },err=>{pendingFetch=Math.max(0,pendingFetch-1);touch();queueCheck();throw err;});
-    };
-  }
-
-  function restoreRuntime(){
-    batching=false;
-    w.setTimeout=native.setTimeout;w.clearTimeout=native.clearTimeout;
-    w.setInterval=native.setInterval;w.clearInterval=native.clearInterval;
-    w.requestAnimationFrame=native.raf;w.cancelAnimationFrame=native.caf;
-    if(native.fetch)w.fetch=native.fetch;
-  }
-  function reveal(){
-    if(committed)return;committed=true;
-    restoreRuntime();
-    try{d.body?.classList.add('v53-settled','v50-stable');}catch(e){}
-    const legacy=d.getElementById('v53StartupCover');if(legacy)legacy.remove();
-    d.documentElement.classList.remove('v126-boot');
-    native.raf(()=>native.raf(()=>d.body?.classList.remove('v126-atomic','v125-finalize','v125-home-freeze')));
-  }
-  function commitFinal(){
-    if(finalizing||committed)return;finalizing=true;
-    d.body?.classList.add('v126-atomic');
-    try{if(typeof finalRender==='function')finalRender();}
-    catch(err){console.warn('v126 final render',err)}
-    finally{finalizing=false;touch();queueCheck();}
-  }
-  function readyToCommit(){
-    if(!armed||!loaded||committed||finalizing)return false;
-    if(pendingFetch||pendingBodies||pendingTasks)return false;
-    if(performance.now()-loadAt<120)return false;
-    if(performance.now()-lastActivity<70)return false;
-    return true;
-  }
-  function queueCheck(){
-    if(committed||!armed)return;
-    native.clearTimeout(checkHandle);
-    checkHandle=native.setTimeout(check,80);
-  }
-  function check(){
-    if(committed)return;
-    if(readyToCommit()){
-      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
-      /* final render and all of its short deferred passes have drained */
-      reveal();return;
-    }
-    /* Safety: never trap the user behind the cover if a remote workbook is unavailable. */
-    if(loaded&&performance.now()-loadAt>12000){
-      if(!d.body?.classList.contains('v126-atomic')){commitFinal();return;}
-      reveal();return;
-    }
-    queueCheck();
-  }
-
-  w.addEventListener('load',()=>{loaded=true;loadAt=performance.now();touch();queueCheck();},{once:true});
-  w.__v126BootController={
-    arm(fn){finalRender=fn;armed=true;queueCheck();},
-    state(){return{loaded,armed,pendingTasks,pendingFetch,pendingBodies,batching,committed}}
-  };
-})();
-</script>
-
-<!-- v127: live GitHub Excel linkage uses Planning.xlsx, Cost.xlsx, Issues.xlsx from same folder as index.html -->
 </head>
 <body>
 <header class="hero">
@@ -3562,9 +3401,9 @@ body.v53-settled .v35-perf-row:hover{
   const d=document;
   const byId=id=>d.getElementById(id);
   const FILES={
-    schedule:'Planning.xlsx',
-    costing:'Cost.xlsx',
-    issues:'Issues.xlsx'
+    schedule:'Updated Project Details and Target Status(2).xlsx',
+    costing:'WOA OVERALL COSTING-PORTFOLIO REPORT 22-6-26(1).xlsx',
+    issues:'Al Fanar Issues Log(1).xlsx'
   };
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
   const val=(row,i)=>row&&i<row.length?row[i]:null;
@@ -3654,7 +3493,7 @@ body.v53-settled .v35-perf-row:hover{
   }
   function addSyncBadge(){
     const actions=d.querySelector('.actions');if(!actions||byId('v54SyncBadge'))return;
-    const badge=d.createElement('div');badge.id='v54SyncBadge';badge.className='v54-sync-badge';badge.innerHTML='<span class="v54-sync-dot"></span><span>Loading live Excel…</span>';actions.prepend(badge);
+    const badge=d.createElement('div');badge.id='v54SyncBadge';badge.className='v54-sync-badge';badge.innerHTML='<span class="v54-sync-dot"></span><span>Embedded Data</span>';actions.prepend(badge);
   }
   function setSync(state,label){const b=byId('v54SyncBadge');if(!b)return;b.className='v54-sync-badge '+state;b.querySelector('span:last-child').textContent=label}
   function patchProjectsCard(){
@@ -3664,7 +3503,7 @@ body.v53-settled .v35-perf-row:hover{
     const closed=data.filter(p=>clean(p.status).toLowerCase()==='closed').length;const running=data.length-closed;
     card.innerHTML=`<label>Projects</label><div class="value">${data.length}</div><div class="sub">${data.length} total loaded</div><div class="v54-project-breakdown"><span class="v54-project-pill running">${running} Running</span><span class="v54-project-pill closed">${closed} Closed</span></div>`;
   }
-  async function fetchWorkbook(file){const url=new URL(file,location.href);url.searchParams.set('v',Date.now());const res=await fetch(url.href,{cache:'no-store'});if(!res.ok)throw new Error(file+' HTTP '+res.status);return XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true})}
+  async function fetchWorkbook(file){const res=await fetch(encodeURI(file)+'?v='+Date.now(),{cache:'no-store'});if(!res.ok)throw new Error(file+' '+res.status);return XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true})}
   async function githubSync(){
     addSyncBadge();patchProjectsCard();
     if(location.protocol==='file:'){setSync('','Embedded Data · GitHub sync activates online');return}
@@ -3674,7 +3513,7 @@ body.v53-settled .v35-perf-row:hover{
       const [schedule,costing,issues]=await Promise.all([fetchWorkbook(FILES.schedule),fetchWorkbook(FILES.costing),fetchWorkbook(FILES.issues)]);
       parseCosting(costing);parseSchedule(schedule);parseIssues(issues);
       if(typeof window.renderAll==='function')window.renderAll();
-      setTimeout(patchProjectsCard,250);setSync('ok','Live Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      setTimeout(patchProjectsCard,250);setSync('ok','Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
     }catch(err){console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
   }
   const prev=window.renderAll;
@@ -4368,7 +4207,7 @@ body.v69-unit-filtered #regionFilter{display:none!important}
   const d=document;
   const byId=id=>d.getElementById(id);
   const STATIC_UNIT_MAP={"PE-221": "Western Unit", "PE-182": "Western Unit", "PE-118": "Western Unit", "PE-261": "Western Unit", "PE-243": "Western Unit", "PE-241": "Western Unit", "PE-257": "Western Unit", "PE-258": "Western Unit", "PE-270": "Western Unit", "PE-290": "Western Unit", "PE-254": "Western Unit", "PE-260": "Western Unit", "PE-262": "Western Unit", "PE-296": "Western Unit", "PE-281": "Western Unit", "PE-280": "Western Unit", "PE-185": "Western Unit", "PE-267": "Western Unit", "PE-291": "Western Unit", "PE-292": "Western Unit", "PE-315": "Western Unit", "PE-246": "Western Unit", "PE-263": "Western Unit", "PE-265": "Western Unit", "PE-266": "Western Unit", "PE-286": "Western Unit", "PE-287": "Western Unit", "PE-294": "Western Unit", "PE-295": "Western Unit", "PE-301": "Western Unit", "PE-305": "Western Unit", "PE-307": "Western Unit", "PE-308": "Western Unit", "PE-312": "Western Unit", "PE-314": "Western Unit", "PE-319": "Western Unit", "PE-324": "Western Unit", "PE-329": "Western Unit", "PE-331": "Western Unit", "PE-332": "Western Unit", "PE-338": "Western Unit", "PE-345": "Western Unit", "PE-347": "Western Unit", "PE-328": "Western Unit", "PE-368": "Western Unit", "PE-369": "Western Unit", "PE-346": "Western Unit", "PE-359": "Western Unit", "PE-365": "Western Unit", "PE-370": "Western Unit", "PE-380": "Western Unit", "PE-388": "Western Unit", "PE-398": "Western Unit", "PE-391": "Western Unit", "PE-371": "Western Unit", "PE-289": "Infra Unit", "PE-293": "Infra Unit", "PE-303": "Infra Unit"};
-  const COST_FILE='Cost.xlsx';
+  const COST_FILE='WOA OVERALL COSTING-PORTFOLIO REPORT 22-6-26(1).xlsx';
   let unitMap={...STATIC_UNIT_MAP};
   let master=[];
   let selectedUnit='All Units';
@@ -4440,7 +4279,7 @@ body.v69-unit-filtered #regionFilter{display:none!important}
   async function refreshUnitMapFromExcel(){
     if(location.protocol==='file:'||!window.XLSX)return;
     try{
-      const url=new URL(COST_FILE,location.href);url.searchParams.set('unitmap',Date.now());const res=await fetch(url.href,{cache:'no-store'});if(!res.ok)return;
+      const res=await fetch(encodeURI(COST_FILE)+'?unitmap='+Date.now(),{cache:'no-store'});if(!res.ok)return;
       const wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true});const ws=wb.Sheets['All']||wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});let unit='';const map={};
       for(let r=3;r<rows.length;r++){const row=rows[r]||[];const name=clean(row[7]),code=clean(row[6]);if(!code&&/UNIT/i.test(name)){unit=/INFRA/i.test(name)?'Infra Unit':'Western Unit';continue}if(code&&unit&&/^[A-Za-z]{1,5}[-_/ ]?\d+/i.test(code))map[code]=unit}
@@ -5394,26 +5233,9 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    if(!group)return;
    group.querySelectorAll('.v92-remarks,.v104-remarks,.v105-remarks,.v87-visible-remarks,.v86-visible-remarks,.v85-planning-remarks,.v79-remarks,.v75-project-remarks').forEach(x=>x.remove());
  }
- function detailedDatesFor(code){
-   const p=currentProjectRecord();
-   const embedded=(window.__v128EmbeddedDateMap&&window.__v128EmbeddedDateMap[code])||dateMap[code]||{};
-   const pick=(a,b)=>clean(a)||clean(b)||null;
-   return {
-     tcc_contract:pick(p?.contract_tcc,embedded.tcc_contract),
-     tcc_revised:pick(p?.revised_tcc,embedded.tcc_revised),
-     tcc_forecast:pick(p?.forecast_tcc,embedded.tcc_forecast),
-     pac_contract:pick(p?.contract_pac,embedded.pac_contract),
-     pac_revised:pick(p?.revised_pac,embedded.pac_revised),
-     pac_forecast:pick(p?.forecast_pac,embedded.pac_forecast),
-     fac_contract:pick(p?.contract_fac,embedded.fac_contract),
-     fac_revised:pick(p?.revised_fac,embedded.fac_revised),
-     fac_forecast:pick(p?.forecast_fac,embedded.fac_forecast),
-     eot_status:pick(p?.eot_status,embedded.eot_status)||'N/A'
-   };
- }
  function renderFinalSchedule(){
    const code=projectCode(), group=scheduleGroup(); if(!code||!group)return;
-   const x=detailedDatesFor(code);
+   const x=dateMap[code];
    group.classList.add('v108-schedule-group','v108-ready','v50-dates-full');
    const oldHead=group.querySelector('.profile-group-head-v29');
    const head=oldHead?oldHead.cloneNode(true):null;
@@ -5436,7 +5258,6 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    const eot=clean(x.eot_status)||'Not Available';
    group.insertAdjacentHTML('beforeend',`<div class="v50-date-card"><div class="v50-date-top"><div class="v50-date-title"><div class="eyebrow">Integrated Schedule View</div><div class="headline">Planned, Revised and Forecast Milestone Dates</div><div class="sub">One consolidated visual for TCC, PAC and FAC based on Updated Project Details.</div></div><div class="v50-eot ${eotTone(eot)}"><div class="eyebrow">Extension of Time</div><div class="value">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div></div><div class="v50-date-matrix">${milestone('TCC','Taking-Over / Completion','Contractual completion milestone',x.tcc_contract,x.tcc_revised,x.tcc_forecast)}${milestone('PAC','Provisional Acceptance','Provisional acceptance milestone',x.pac_contract,x.pac_revised,x.pac_forecast)}${milestone('FAC','Final Acceptance','Final acceptance / overall project milestone',x.fac_contract,x.fac_revised,x.fac_forecast)}</div></div>`);
  }
- window.__v128RenderFinalSchedule=renderFinalSchedule;
  function finalizeNow(){
    d.body?.classList.add('v50-stable');
    d.body?.classList.remove('v103-filtering','v104-filtering','v106-filtering');
@@ -5858,8 +5679,6 @@ body.v125-finalize main.shell *,body.v125-finalize main.shell *::before,body.v12
   else requestAnimationFrame(fastStartup);
 })();
 </script>
-
-
 
 </body>
 </html>
@@ -9519,25 +9338,5 @@ body.v104-filtering .toolbar{pointer-events:auto}
   }
   if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',attach,{once:true});else attach();
   window.addEventListener('load',sync,{once:true});
-})();
-</script>
-
-
-<script id="v126-stable-startup-arm">
-(function(){
-  const c=window.__v126BootController;
-  if(c)c.arm(()=>{if(typeof window.renderAll==='function')return window.renderAll();});
-})();
-</script>
-<script id="v128-detailed-date-source-fix">
-(function(){
-  try{
-    if(typeof dataMap!=='undefined' && dataMap){
-      window.__v128EmbeddedDateMap=dataMap;
-    }
-  }catch(e){console.warn('Embedded milestone map hydration',e)}
-  const refresh=()=>{try{if(typeof window.__v128RenderFinalSchedule==='function')window.__v128RenderFinalSchedule()}catch(e){console.warn('Schedule refresh',e)}};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true}); else refresh();
-  window.addEventListener('load',refresh,{once:true});
 })();
 </script>
