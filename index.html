@@ -5394,9 +5394,26 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    if(!group)return;
    group.querySelectorAll('.v92-remarks,.v104-remarks,.v105-remarks,.v87-visible-remarks,.v86-visible-remarks,.v85-planning-remarks,.v79-remarks,.v75-project-remarks').forEach(x=>x.remove());
  }
+ function detailedDatesFor(code){
+   const p=currentProjectRecord();
+   const embedded=(window.__v128EmbeddedDateMap&&window.__v128EmbeddedDateMap[code])||dateMap[code]||{};
+   const pick=(a,b)=>clean(a)||clean(b)||null;
+   return {
+     tcc_contract:pick(p?.contract_tcc,embedded.tcc_contract),
+     tcc_revised:pick(p?.revised_tcc,embedded.tcc_revised),
+     tcc_forecast:pick(p?.forecast_tcc,embedded.tcc_forecast),
+     pac_contract:pick(p?.contract_pac,embedded.pac_contract),
+     pac_revised:pick(p?.revised_pac,embedded.pac_revised),
+     pac_forecast:pick(p?.forecast_pac,embedded.pac_forecast),
+     fac_contract:pick(p?.contract_fac,embedded.fac_contract),
+     fac_revised:pick(p?.revised_fac,embedded.fac_revised),
+     fac_forecast:pick(p?.forecast_fac,embedded.fac_forecast),
+     eot_status:pick(p?.eot_status,embedded.eot_status)||'N/A'
+   };
+ }
  function renderFinalSchedule(){
    const code=projectCode(), group=scheduleGroup(); if(!code||!group)return;
-   const x=dateMap[code];
+   const x=detailedDatesFor(code);
    group.classList.add('v108-schedule-group','v108-ready','v50-dates-full');
    const oldHead=group.querySelector('.profile-group-head-v29');
    const head=oldHead?oldHead.cloneNode(true):null;
@@ -5419,6 +5436,7 @@ body.v108-filtering #projectIdentitySection{visibility:visible!important;opacity
    const eot=clean(x.eot_status)||'Not Available';
    group.insertAdjacentHTML('beforeend',`<div class="v50-date-card"><div class="v50-date-top"><div class="v50-date-title"><div class="eyebrow">Integrated Schedule View</div><div class="headline">Planned, Revised and Forecast Milestone Dates</div><div class="sub">One consolidated visual for TCC, PAC and FAC based on Updated Project Details.</div></div><div class="v50-eot ${eotTone(eot)}"><div class="eyebrow">Extension of Time</div><div class="value">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div></div><div class="v50-date-matrix">${milestone('TCC','Taking-Over / Completion','Contractual completion milestone',x.tcc_contract,x.tcc_revised,x.tcc_forecast)}${milestone('PAC','Provisional Acceptance','Provisional acceptance milestone',x.pac_contract,x.pac_revised,x.pac_forecast)}${milestone('FAC','Final Acceptance','Final acceptance / overall project milestone',x.fac_contract,x.fac_revised,x.fac_forecast)}</div></div>`);
  }
+ window.__v128RenderFinalSchedule=renderFinalSchedule;
  function finalizeNow(){
    d.body?.classList.add('v50-stable');
    d.body?.classList.remove('v103-filtering','v104-filtering','v106-filtering');
@@ -5840,6 +5858,8 @@ body.v125-finalize main.shell *,body.v125-finalize main.shell *::before,body.v12
   else requestAnimationFrame(fastStartup);
 })();
 </script>
+
+
 
 </body>
 </html>
@@ -9509,4 +9529,15 @@ body.v104-filtering .toolbar{pointer-events:auto}
   if(c)c.arm(()=>{if(typeof window.renderAll==='function')return window.renderAll();});
 })();
 </script>
-
+<script id="v128-detailed-date-source-fix">
+(function(){
+  try{
+    if(typeof dataMap!=='undefined' && dataMap){
+      window.__v128EmbeddedDateMap=dataMap;
+    }
+  }catch(e){console.warn('Embedded milestone map hydration',e)}
+  const refresh=()=>{try{if(typeof window.__v128RenderFinalSchedule==='function')window.__v128RenderFinalSchedule()}catch(e){console.warn('Schedule refresh',e)}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true}); else refresh();
+  window.addEventListener('load',refresh,{once:true});
+})();
+</script>
