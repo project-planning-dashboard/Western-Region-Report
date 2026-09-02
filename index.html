@@ -8826,14 +8826,15 @@ let n=0; const iv=setInterval(()=>{ place(); if(++n>14) clearInterval(iv); },500
   const money=v=>{const n=num(v),a=Math.abs(n),sign=n<0?'-':''; if(a>=1e9)return `SAR ${sign}${(a/1e9).toFixed(1)}B`; if(a>=1e6)return `SAR ${sign}${(a/1e6).toFixed(1)}M`; if(a>=1e3)return `SAR ${sign}${(a/1e3).toFixed(1)}K`; return `SAR ${sign}${a.toFixed(0)}`;};
   const signedDays=v=>{const n=Math.round(num(v)); if(!has(v)||n===0) return 'On Time'; return `${n>0?'+':''}${n}d`;};
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function v157KpiIcon(kind){const p={folder:'<path d="M3 6h6l2 2h10v10H3z"/><path d="M3 6V4h6l2 2"/>',chart:'<path d="M4 19V9m6 10V5m6 14v-7"/><path d="M2 21h20"/>',gauge:'<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-5"/><circle cx="12" cy="16" r="1.4"/>',briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3m-12 5h18"/>',wallet:'<path d="M4 7h14a2 2 0 0 1 2 2v9H4z"/><path d="M4 7V5h12v2"/><path d="M15 12h5v4h-5a2 2 0 0 1 0-4Z"/>',alert:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};return `<span class="v155-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[kind]||p.chart}</svg></span>`;}
   function data(){ try{ if(typeof window.filterProjects==='function'){ const out=window.filterProjects(); if(Array.isArray(out)) return out; } }catch(e){} return Array.isArray(window.projects)?window.projects:[]; }
   function selectedCode(){ return String(byId('projectFilter')?.value||'').trim(); }
   function weighted(rows){ const eligible=(rows||[]).filter(p=>num(p.original_contract)>0 && has(p.planned_pct) && has(p.actual_pct)); const base=eligible.reduce((a,p)=>a+num(p.original_contract),0); const pv=eligible.reduce((a,p)=>a+(num(p.planned_pct)/100)*num(p.original_contract),0); const ev=eligible.reduce((a,p)=>a+(num(p.actual_pct)/100)*num(p.original_contract),0); return {eligible,base,pv,ev,planned:base?pv/base*100:null,actual:base?ev/base*100:null,variance:base?(ev-pv)/base*100:null,spi:pv?ev/pv:null}; }
   function projectDelay(p){ if(has(p?.tcc_variance_days)) return num(p.tcc_variance_days); const c=Date.parse(p?.contract_tcc||''); const f=Date.parse(p?.forecast_tcc||''); return (Number.isFinite(c)&&Number.isFinite(f))?Math.round((f-c)/86400000):0; }
   function toneByVariance(v){ const n=num(v); return n<-5?'red':n<0?'amber':'green'; }
   function spiTone(v){ const n=num(v); return n<0.95?'#d9534f':n<1?'#ef9a12':'#176db3'; }
-  function render(){ const host=byId('topKpis'); if(!host) return; const rows=data(); const selected=selectedCode(); const single=!!selected; const w=weighted(rows); const contract=rows.reduce((a,p)=>a+num(p.original_contract),0); const cashIn=rows.reduce((a,p)=>a+num(p.cash_inflow),0); const cashOut=rows.reduce((a,p)=>a+num(p.cash_outflow),0); const netCashStored=rows.reduce((a,p)=>a+num(p.net_cash),0); const netCash=(cashIn!==0||cashOut!==0)?cashIn-cashOut:netCashStored; const critical=rows.filter(p=>num(p.net_cash)<0).length; const running=rows.filter(p=>String(p.status||'').toLowerCase()==='running').length; const closed=rows.filter(p=>String(p.status||'').toLowerCase()==='closed').length; const variance=w.variance; const varTone=toneByVariance(variance); const p=single ? (rows.find(x=>String(x.code)===selected) || rows[0] || null) : null; const delay=projectDelay(p); const eot=String(p?.eot_status||'').trim() || 'Not Available'; const scheduleTone=delay>0?'red':delay<0?'green':'blue'; const spi=w.spi; const spiClr=spiTone(spi); const spiDeg=!has(spi)?0:Math.max(0,Math.min(360,spi>=1?360:spi*360)); host.innerHTML=`${single?'':`<div class="kpi tone-blue"><label>Projects</label><div class="value">${rows.length}</div><div class="sub">${rows.length} total loaded</div><div class="v88-status-row"><span class="v88-status-pill run">${running} Running</span><span class="v88-status-pill close">${closed} Closed</span></div></div>`}<div class="kpi tone-blue"><label>Current Actual</label><div class="value">${pct(w.actual)}</div><div class="sub">Planned ${pct(w.planned)}</div><div class="v88-progress-mini"><div class="lab">Plan</div><div class="v88-progress-track plan"><span style="width:${Math.max(0,Math.min(100,num(w.planned)))}%"></span></div><div class="pct">${pct(w.planned)}</div><div class="lab">Actual</div><div class="v88-progress-track actual"><span style="width:${Math.max(0,Math.min(100,num(w.actual)))}%"></span></div><div class="pct">${pct(w.actual)}</div></div><div class="v88-var-chip ${varTone}">Variance ${has(variance)?signedPct(variance):'N/A'}</div></div><div class="kpi tone-red"><label>Portfolio SPI</label><div class="v88-spi-wrap"><div class="v88-spi-ring" style="--deg:${spiDeg}deg;--clr:${spiClr}"><div class="v88-spi-value">${has(spi)?num(spi).toFixed(2):'N/A'}</div></div><div class="v88-spi-copy"><div class="state" style="color:${spiClr}">${!has(spi)?'No Progress Data':spi<0.95?'Critical SPI':spi<1?'Watchlist SPI':'Healthy SPI'}</div><div class="desc">Earned Value Cost ÷ Planned Value Cost</div></div></div></div><div class="kpi tone-blue"><label>Contract Value</label><div class="value">${money(contract)}</div><div class="sub">Combined original contract value</div><div class="v88-kpi-note">${w.eligible.length} progress-weighted projects used in planning metrics</div></div><div class="kpi ${netCash<0?'tone-red':'tone-green'}"><label>Net Cash</label><div class="value">${money(netCash)}</div><div class="sub">Consolidated net cash position</div><div class="v141-cash-mini v149-primary-cash"><div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cashIn))}">${esc(money(cashIn).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cashOut))}">${esc(money(cashOut).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${netCash<0?'neg':'pos'}" title="${esc(money(netCash))}">${esc(money(netCash).replace('SAR ',''))}</div></div></div></div>${single?`<div class="kpi tone-${scheduleTone}"><label>Schedule Health</label><div class="value">${signedDays(delay)}</div><div class="sub">Forecast TCC vs contractual baseline</div><div class="v88-major ${scheduleTone}">${esc(String(p?.forecast_tcc||'').trim() ? 'Forecast TCC ' + new Date(p.forecast_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No forecast date')}</div><div class="v88-kpi-note">${esc(String(p?.contract_tcc||'').trim() ? 'Contractual TCC ' + new Date(p.contract_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No contractual TCC')}</div></div><div class="kpi ${/approval/i.test(eot)?'tone-red':'tone-blue'}"><label>EOT Status</label><div class="value" style="font-size:28px">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div>`:`<div class="kpi tone-red" id="v88bCriticalCard"><label>Critical Projects</label><div class="value">${critical}</div><div class="sub">Projects with negative net cash</div>${critical?'<div class="v88-link-note">Click to filter register</div>':''}</div>`}`; const c=byId('v88bCriticalCard'); if(c){c.style.cursor='pointer'; c.onclick=()=>{const body=byId('projectRegisterBody'); if(body) body.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});};}}
-  function queue(){ clearTimeout(window.__v88bkpiT); window.__v88bkpiT=setTimeout(render,150); setTimeout(render,650); setTimeout(render,1250);} const prev=window.renderAll; if(typeof prev==='function'&&!window.__v88bWrapped){ window.__v88bWrapped=true; window.renderAll=function(){ const r=prev.apply(this,arguments); queue(); return r; }; } ['projectFilter','typeFilter','statusFilter','regionFilter'].forEach(id=>byId(id)?.addEventListener('change',queue)); d.addEventListener('click',e=>{ if(e.target.closest('.v69-unit-tab')) queue(); },true); d.addEventListener('DOMContentLoaded',()=>{ setTimeout(render,1200); setTimeout(render,2400); },{once:true}); window.addEventListener('load',()=>{ setTimeout(render,1800); setTimeout(render,3200); },{once:true}); setTimeout(render,3500);
+  function render(){ const host=byId('topKpis'); if(!host) return; const rows=data(); const selected=selectedCode(); const single=!!selected; const w=weighted(rows); const contract=rows.reduce((a,p)=>a+num(p.original_contract),0); const cashIn=rows.reduce((a,p)=>a+num(p.cash_inflow),0); const cashOut=rows.reduce((a,p)=>a+num(p.cash_outflow),0); const netCashStored=rows.reduce((a,p)=>a+num(p.net_cash),0); const netCash=(cashIn!==0||cashOut!==0)?cashIn-cashOut:netCashStored; const cashCoverage=cashOut>0?Math.max(0,Math.min(100,cashIn/cashOut*100)):(cashIn>0?100:0); const critical=rows.filter(p=>num(p.net_cash)<0).length; const running=rows.filter(p=>String(p.status||'').toLowerCase()==='running').length; const closed=rows.filter(p=>String(p.status||'').toLowerCase()==='closed').length; const variance=w.variance; const varTone=toneByVariance(variance); const p=single ? (rows.find(x=>String(x.code)===selected) || rows[0] || null) : null; const delay=projectDelay(p); const eot=String(p?.eot_status||'').trim() || 'Not Available'; const scheduleTone=delay>0?'red':delay<0?'green':'blue'; const spi=w.spi; const spiClr=spiTone(spi); const spiDeg=!has(spi)?0:Math.max(0,Math.min(360,spi>=1?360:spi*360)); host.innerHTML=`${single?'':`<div class="kpi tone-blue">${v157KpiIcon('folder')}<label>Projects</label><div class="value">${rows.length}</div><div class="sub">${rows.length} total loaded</div><div class="v88-status-row"><span class="v88-status-pill run">${running} Running</span><span class="v88-status-pill close">${closed} Closed</span></div></div>`}<div class="kpi tone-blue">${v157KpiIcon('chart')}<label>Current Actual</label><div class="value">${pct(w.actual)}</div><div class="sub">Planned ${pct(w.planned)}</div><div class="v88-progress-mini"><div class="lab">Plan</div><div class="v88-progress-track plan"><span style="width:${Math.max(0,Math.min(100,num(w.planned)))}%"></span></div><div class="pct">${pct(w.planned)}</div><div class="lab">Actual</div><div class="v88-progress-track actual"><span style="width:${Math.max(0,Math.min(100,num(w.actual)))}%"></span></div><div class="pct">${pct(w.actual)}</div></div><div class="v88-var-chip ${varTone}">Variance ${has(variance)?signedPct(variance):'N/A'}</div></div><div class="kpi tone-red">${v157KpiIcon('gauge')}<label>Portfolio SPI</label><div class="v88-spi-wrap"><div class="v88-spi-ring" style="--deg:${spiDeg}deg;--clr:${spiClr}"><div class="v88-spi-value">${has(spi)?num(spi).toFixed(2):'N/A'}</div></div><div class="v88-spi-copy"><div class="state" style="color:${spiClr}">${!has(spi)?'No Progress Data':spi<0.95?'Critical SPI':spi<1?'Watchlist SPI':'Healthy SPI'}</div><div class="desc">Earned Value Cost ÷ Planned Value Cost</div></div></div></div><div class="kpi tone-blue">${v157KpiIcon('briefcase')}<label>Contract Value</label><div class="value">${money(contract)}</div><div class="sub">Combined original contract value</div><div class="v88-kpi-note">${w.eligible.length} progress-weighted projects used in planning metrics</div></div><div class="kpi ${netCash<0?'tone-red':'tone-green'} v158-net-card">${v157KpiIcon('wallet')}<label>Net Cash</label><div class="v158-net-primary"><div class="v158-net-value">${money(netCash)}</div><div class="v158-net-meta"><span class="v158-net-trend ${netCash<0?'down':netCash>0?'up':'flat'}">${netCash<0?'<span class="arr">↓</span> Downtrend':netCash>0?'<span class="arr">↑</span> Uptrend':'<span class="arr">→</span> Balanced'}</span><div class="v158-net-state ${netCash<0?'down':netCash>0?'up':'flat'}">${netCash<0?'Negative liquidity position':netCash>0?'Positive liquidity position':'Balanced liquidity position'}</div></div></div><div class="v158-cash-strip"><div class="v158-cash-pair"><div class="v158-cash-metric in" title="${esc(money(cashIn))}"><span>Cash In</span><strong>${esc(money(cashIn).replace('SAR ',''))}</strong></div><div class="v158-cash-arrow">→</div><div class="v158-cash-metric out" title="${esc(money(cashOut))}"><span>Cash Out</span><strong>${esc(money(cashOut).replace('SAR ',''))}</strong></div></div><div class="v158-coverage-row"><span>Cash coverage</span><div class="v158-coverage-track"><i style="width:${cashCoverage.toFixed(1)}%"></i></div><strong>${cashCoverage.toFixed(0)}%</strong></div></div></div>${single?`<div class="kpi tone-${scheduleTone}">${v157KpiIcon('calendar')}<label>Schedule Health</label><div class="value">${signedDays(delay)}</div><div class="sub">Forecast TCC vs contractual baseline</div><div class="v88-major ${scheduleTone}">${esc(String(p?.forecast_tcc||'').trim() ? 'Forecast TCC ' + new Date(p.forecast_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No forecast date')}</div><div class="v88-kpi-note">${esc(String(p?.contract_tcc||'').trim() ? 'Contractual TCC ' + new Date(p.contract_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No contractual TCC')}</div></div><div class="kpi ${/approval/i.test(eot)?'tone-red':'tone-blue'}">${v157KpiIcon('clock')}<label>EOT Status</label><div class="value" style="font-size:28px">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div>`:`<div class="kpi tone-red" id="v88bCriticalCard">${v157KpiIcon('alert')}<label>Critical Projects</label><div class="value">${critical}</div><div class="sub">Projects with negative net cash</div>${critical?'<div class="v88-link-note">Click to filter register</div>':''}</div>`}`; const c=byId('v88bCriticalCard'); if(c){c.style.cursor='pointer'; c.onclick=()=>{const body=byId('projectRegisterBody'); if(body) body.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});};}}
+  function queue(){ clearTimeout(window.__v88bkpiT); window.__v88bkpiT=setTimeout(render,0); setTimeout(render,60); setTimeout(render,220);} const prev=window.renderAll; if(typeof prev==='function'&&!window.__v88bWrapped){ window.__v88bWrapped=true; window.renderAll=function(){ const r=prev.apply(this,arguments); queue(); return r; }; } ['projectFilter','typeFilter','statusFilter','regionFilter'].forEach(id=>byId(id)?.addEventListener('change',queue)); d.addEventListener('click',e=>{ if(e.target.closest('.v69-unit-tab')) queue(); },true); d.addEventListener('DOMContentLoaded',()=>{ render(); setTimeout(render,60); setTimeout(render,250); },{once:true}); window.addEventListener('load',()=>{ render(); setTimeout(render,80); setTimeout(render,300); },{once:true}); setTimeout(render,0);
 })();
 </script>
 
@@ -10026,7 +10027,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
     }).join(''):'<tr><td colspan="12" class="note">No issues match the selected operational filters.</td></tr>';
   }
 
-  function patchCashKpi(){
+  function patchCashKpi(){return;
     const host=byId('topKpis');if(!host)return;const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));if(!card)return;
     const data=mainData(),cin=data.reduce((a,p)=>a+num(p.cash_inflow),0),cout=data.reduce((a,p)=>a+num(p.cash_outflow),0),net=data.reduce((a,p)=>a+num(p.net_cash),0);
     let mini=card.querySelector('.v141-cash-mini');if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}
@@ -10089,7 +10090,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
   }
 
   /* ----- Cash card: keep Cash In / Cash Out / Net visible after every render ----- */
-  function patchCashKpi(){
+  function patchCashKpi(){return;
     if(kpiBusy)return;kpiBusy=true;
     try{
       const host=byId('topKpis');if(!host)return;
@@ -10477,7 +10478,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
     if(contract){contract.style.setProperty('width','100%','important');contract.style.setProperty('grid-column','1 / -1','important');}
     grid.style.setProperty('grid-template-columns','minmax(0,1fr)','important');
   }
-  function topCash(){
+  function topCash(){return;
     const host=d.getElementById('topKpis');if(!host)return;
     const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));
     if(!card)return;
@@ -10538,7 +10539,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
     const status=clean(d.getElementById('statusFilter')?.value||'');
     return all.filter(p=>(!type||clean(p.project_type)===type)&&(!status||clean(p.status)===status));
   }
-  function ensureTopCash(){
+  function ensureTopCash(){return;
     const host=d.getElementById('topKpis');if(!host)return;
     const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));
     if(!card)return;
@@ -10780,10 +10781,12 @@ body.v104-filtering .toolbar{pointer-events:auto}
   const criticality=i=>{const x=clean(i?.impact).toLowerCase();if(/extremely\s*high|critical/.test(x))return'Extremely High';if(/^high$/.test(x)||x==='high')return'High';if(/medium/.test(x))return'Medium';if(/low/.test(x))return'Low';return x?'Other':''};
   const ownerCat=i=>{const x=clean(i?.issue_owner).toLowerCase();if(/vendor|subcontract/.test(x))return'Vendor';if(/client|sec/.test(x))return'Client';if(/alfanar/.test(x))return'Alfanar';return x?'Other':''};
   const secPriority=i=>{const x=clean(i?.priority_sec).toUpperCase();return ['A','B','C'].includes(x)?x:(x?'Other':'')};
+  function v157IssueKind(title){const x=clean(title).toLowerCase();if(x.includes('issue status'))return'status';if(x.includes('criticality'))return'critical';if(x.includes('issue owner'))return'owner';if(x.includes('alfanar department'))return'dept';if(x.includes('sec priority'))return'priority';if(x.includes('vendor'))return'vendor';if(x.includes('issue type'))return'type';return'total'}
+  function v157IssueIcon(title){const kind=v157IssueKind(title),p={status:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="17" r="2"/>',critical:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',owner:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c.8-4 2.9-6 6-6s5.2 2 6 6M14 15c3 .2 5 1.8 5.5 5"/>',dept:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2m4 0h2M8 14h2m4 0h2M9 21v-4h6v4"/>',priority:'<path d="M5 21V4"/><path d="M5 5h12l-2.5 4L17 13H5"/>',vendor:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',type:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/>',total:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>'};return `<span class="v154-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[kind]||p.total}</svg></span>`}
   function grouped(rows,getter){const map=new Map();rows.forEach(r=>{const raw=getter(r);if(!raw)return;const label=clean(raw);if(!label)return;const k=label.toLowerCase().replace(/\s+/g,' ');const cur=map.get(k);if(cur)cur.count++;else map.set(k,{label,count:1})});return [...map.values()].sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label))}
-  function donut(title,entries,total,colors){if(!entries.length)return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;let pos=0;const grad=[];entries.forEach((e,idx)=>{const pct=total?e.count/total*100:0;const next=pos+pct;grad.push(`${colors[idx%colors.length]} ${pos.toFixed(2)}% ${next.toFixed(2)}%`);pos=next});const legends=entries.map((e,idx)=>{const pct=total?e.count/total*100:0;return `<div class="v151-legend-row"><span class="v151-dot" style="background:${colors[idx%colors.length]}"></span><span title="${esc(e.label)}">${esc(e.label)}</span><strong>${e.count}<small>${pct.toFixed(0)}%</small></strong></div>`}).join('');return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div><div class="v151-card-total">${total}</div></div><div class="v151-donut-layout"><div class="v151-donut" style="background:conic-gradient(${grad.join(',')})"><div class="v151-donut-center"><b>${total}</b><span>Issues</span></div></div><div class="v151-legend">${legends}</div></div></div>`}
-  function bars(title,entries,cls=''){if(!entries.length)return `<div class="v151-analytics-card ${cls}"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;const max=Math.max(...entries.map(e=>e.count),1);return `<div class="v151-analytics-card ${cls}"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div><div class="v151-card-total">${entries.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-bar-list">${entries.map(e=>`<div class="v151-bar-row"><div class="v151-bar-label" title="${esc(e.label)}">${esc(e.label)}</div><div class="v151-bar-track"><div class="v151-bar-fill" style="width:${Math.max(2,e.count/max*100).toFixed(1)}%"></div></div><div class="v151-bar-value">${e.count}</div></div>`).join('')}</div></div>`}
-  function priorityBars(entries){const map=new Map(entries.map(e=>[e.label,e.count]));const vals=['A','B','C'].map(k=>({label:k,count:map.get(k)||0}));const max=Math.max(...vals.map(x=>x.count),1);return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">SEC Priority</div><div class="v151-card-total">${vals.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-priority-grid">${vals.map(v=>`<div class="v151-priority-item"><div class="v151-priority-value">${v.count}</div><div class="v151-priority-bar" style="height:${Math.max(4,v.count/max*92).toFixed(1)}px"></div><div class="v151-priority-label">${v.label}</div></div>`).join('')}</div></div>`}
+  function donut(title,entries,total,colors){const kind=v157IssueKind(title);if(!entries.length)return `<div class="v151-analytics-card" data-v154-kind="${kind}"><div class="v151-card-head"><div class="v151-card-title">${v157IssueIcon(title)}${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;let pos=0;const grad=[];entries.forEach((e,idx)=>{const pct=total?e.count/total*100:0;const next=pos+pct;grad.push(`${colors[idx%colors.length]} ${pos.toFixed(2)}% ${next.toFixed(2)}%`);pos=next});const legends=entries.map((e,idx)=>{const pct=total?e.count/total*100:0;return `<div class="v151-legend-row"><span class="v151-dot" style="background:${colors[idx%colors.length]}"></span><span title="${esc(e.label)}">${esc(e.label)}</span><strong>${e.count}<small>${pct.toFixed(0)}%</small></strong></div>`}).join('');return `<div class="v151-analytics-card" data-v154-kind="${kind}"><div class="v151-card-head"><div class="v151-card-title">${v157IssueIcon(title)}${esc(title)}</div><div class="v151-card-total">${total}</div></div><div class="v151-donut-layout"><div class="v151-donut" style="background:conic-gradient(${grad.join(',')})"><div class="v151-donut-center"><b>${total}</b><span>Issues</span></div></div><div class="v151-legend">${legends}</div></div></div>`}
+  function bars(title,entries,cls=''){const kind=v157IssueKind(title);if(!entries.length)return `<div class="v151-analytics-card ${cls}" data-v154-kind="${kind}"><div class="v151-card-head"><div class="v151-card-title">${v157IssueIcon(title)}${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;const max=Math.max(...entries.map(e=>e.count),1);return `<div class="v151-analytics-card ${cls}" data-v154-kind="${kind}"><div class="v151-card-head"><div class="v151-card-title">${v157IssueIcon(title)}${esc(title)}</div><div class="v151-card-total">${entries.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-bar-list">${entries.map(e=>`<div class="v151-bar-row"><div class="v151-bar-label" title="${esc(e.label)}">${esc(e.label)}</div><div class="v151-bar-track"><div class="v151-bar-fill" style="width:${Math.max(2,e.count/max*100).toFixed(1)}%"></div></div><div class="v151-bar-value">${e.count}</div></div>`).join('')}</div></div>`}
+  function priorityBars(entries){const title='SEC Priority',map=new Map(entries.map(e=>[e.label,e.count]));const vals=['A','B','C'].map(k=>({label:k,count:map.get(k)||0}));const max=Math.max(...vals.map(x=>x.count),1);return `<div class="v151-analytics-card" data-v154-kind="priority"><div class="v151-card-head"><div class="v151-card-title">${v157IssueIcon(title)}SEC Priority</div><div class="v151-card-total">${vals.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-priority-grid">${vals.map(v=>`<div class="v151-priority-item"><div class="v151-priority-value">${v.count}</div><div class="v151-priority-bar" style="height:${Math.max(4,v.count/max*92).toFixed(1)}px"></div><div class="v151-priority-label">${v.label}</div></div>`).join('')}</div></div>`}
   function ensureHost(){const metrics=d.getElementById('riskTopMetrics');if(!metrics)return null;let host=d.getElementById('v151IssueAnalytics');if(!host){host=d.createElement('div');host.id='v151IssueAnalytics';metrics.insertAdjacentElement('afterend',host)}return host}
   w.__v151RenderIssueAnalytics=function(rows){rows=Array.isArray(rows)?rows:[];const host=ensureHost();if(!host)return;const total=rows.length;
     const status=grouped(rows,i=>statusOf(i));
@@ -11359,6 +11362,179 @@ body.v104-filtering .toolbar{pointer-events:auto}
  d.addEventListener('click',e=>{if(e.target?.closest?.('#resetRiskFilters,#v154IssueClearFilters,#v153IssueClearFilters,[data-v152-clear-all],[data-v152-clear-dim],.v152-clickable-stat'))schedule()},true);
  const host=d.getElementById('v151IssueAnalytics'),metrics=d.getElementById('riskTopMetrics'),top=d.getElementById('topKpis');const obs=new MutationObserver(schedule);if(host)obs.observe(host,{childList:true,subtree:true});if(metrics)obs.observe(metrics,{childList:true,subtree:true});if(top)obs.observe(top,{childList:true,subtree:true});
  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(sync,30),{once:true});else setTimeout(sync,30);w.addEventListener('load',()=>[40,180,650].forEach(t=>setTimeout(sync,t)),{once:true});
+})();
+</script>
+
+
+<!-- v156: first-render persistent icons + smart cash story with trend -->
+<style id="v156-firstpaint-icons-smartcash-style">
+/* Make the v155 semantic icons visible from the first real render and keep them prominent. */
+#topKpis .kpi{position:relative!important}
+#topKpis .v155-kpi-icon{display:flex!important;opacity:1!important;visibility:visible!important;width:40px!important;height:40px!important;border-radius:12px!important;right:14px!important;top:14px!important}
+#topKpis .v155-kpi-icon svg{width:23px!important;height:23px!important}
+.cardhead .v155-global-title-icon{display:inline-flex!important;opacity:1!important;visibility:visible!important;width:36px!important;height:36px!important;flex:0 0 36px!important;border-radius:11px!important}
+.cardhead .v155-global-title-icon svg{width:21px!important;height:21px!important}
+#riskTopMetrics .v154-summary-icon,#v151IssueAnalytics .v154-card-icon{opacity:1!important;visibility:visible!important}
+
+/* Smart Net Cash KPI: big net result + directional trend + compact inflow/outflow story. */
+#topKpis .kpi.v156-smart-net-card .v156-net-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:1px}
+#topKpis .kpi.v156-smart-net-card .v156-net-head>.value{margin:0!important;min-width:0}
+.v156-net-trend{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:950;letter-spacing:.25px;white-space:nowrap;border:1px solid transparent}
+.v156-net-trend.down{color:#c93f45;background:#fff0f1;border-color:#f4c9cc}
+.v156-net-trend.up{color:#11865a;background:#ebf9f2;border-color:#c5e8d7}
+.v156-net-trend.flat{color:#64798b;background:#f1f5f8;border-color:#dce6ed}
+.v156-net-trend .arr{font-size:15px;line-height:1;font-weight:1000}
+
+#topKpis .v141-cash-mini.v156-smart-cash{display:block!important;margin-top:auto!important;padding-top:8px!important}
+.v156-flow-row{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:5px;align-items:stretch}
+.v156-flow-step{border:1px solid #d9e6ef;border-radius:10px;background:#fff;padding:7px 8px;min-width:0;box-shadow:0 3px 8px rgba(21,63,96,.035)}
+.v156-flow-step .top{display:flex;align-items:center;gap:5px;font-size:8px;line-height:1;text-transform:uppercase;letter-spacing:.55px;font-weight:950;color:#6b7f91;white-space:nowrap}
+.v156-flow-step .ico{width:17px;height:17px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:1000;flex:0 0 17px}
+.v156-flow-step.in .ico{background:#eaf9f2;color:#11865a}.v156-flow-step.out .ico{background:#fff4e2;color:#bf7800}
+.v156-flow-step .amt{font-size:13px;line-height:1.05;font-weight:950;color:#173b60;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v156-flow-step.in .amt{color:#11865a}.v156-flow-step.out .amt{color:#b97600}
+.v156-flow-arrow{display:flex;align-items:center;justify-content:center;color:#7890a4;font-size:15px;font-weight:950}
+.v156-coverage{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px;margin-top:7px}
+.v156-coverage .lab,.v156-coverage .pct{font-size:8px;font-weight:900;color:#687e91;white-space:nowrap}
+.v156-coverage .pct{color:#244c70}
+.v156-coverage-track{height:5px;border-radius:999px;background:#e3ebf2;overflow:hidden}
+.v156-coverage-track>span{height:100%;display:block;border-radius:999px;background:linear-gradient(90deg,#20a36b,#0f6fbd)}
+@media(max-width:1280px){.v156-flow-step{padding:6px}.v156-flow-step .amt{font-size:12px}.v156-net-trend{font-size:8px;padding:4px 6px}}
+@media(max-width:820px){.v156-flow-row{grid-template-columns:1fr 18px 1fr}}
+</style>
+<script id="v156-firstpaint-icons-smartcash-script">
+(function(){
+ const d=document,w=window;if(w.__v156FirstPaintIconsSmartCash)return;w.__v156FirstPaintIconsSmartCash=true;
+ const clean=v=>String(v==null?'':v).trim();
+ const norm=v=>clean(v).toLowerCase().replace(/\s+/g,' ');
+ const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+ const money=v=>{const n=num(v),a=Math.abs(n),sg=n<0?'-':'';if(a>=1e9)return `SAR ${sg}${(a/1e9).toFixed(1)}B`;if(a>=1e6)return `SAR ${sg}${(a/1e6).toFixed(1)}M`;if(a>=1e3)return `SAR ${sg}${(a/1e3).toFixed(1)}K`;return `SAR ${sg}${a.toFixed(0)}`};
+ const canon=v=>clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+ function svg(name){
+  const p={
+   dashboard:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+   folder:'<path d="M3 6h6l2 2h10v10H3z"/><path d="M3 6V4h6l2 2"/>',
+   chart:'<path d="M4 19V9m6 10V5m6 14v-7"/><path d="M2 21h20"/>',
+   gauge:'<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-5"/><circle cx="12" cy="16" r="1.4"/>',
+   wallet:'<path d="M4 7h14a2 2 0 0 1 2 2v9H4z"/><path d="M4 7V5h12v2"/><path d="M15 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
+   alert:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
+   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+   table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 9v11M15 9v11"/>',
+   user:'<circle cx="12" cy="8" r="3"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/>',
+   briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3m-12 5h18"/>',
+   receipt:'<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+   trend:'<path d="M4 17 9 12l4 3 7-8"/><path d="M15 7h5v5"/>',
+   layers:'<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>',
+   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+   total:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+   open:'<path d="M4 8h6l2 2h8v9H4z"/><path d="M4 8V5h6l2 2"/><path d="M16 5v4m-2-2h4"/>',
+   closed:'<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-7"/>',
+   status:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="17" r="2"/>',
+   critical:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
+   owner:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c.8-4 2.9-6 6-6s5.2 2 6 6M14 15c3 .2 5 1.8 5.5 5"/>',
+   dept:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2m4 0h2M8 14h2m4 0h2M9 21v-4h6v4"/>',
+   priority:'<path d="M5 21V4"/><path d="M5 5h12l-2.5 4L17 13H5"/>',
+   vendor:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+   type:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/>',
+   action:'<path d="M4 19h16"/><path d="M6 16 10 12l3 3 5-7"/><path d="M16 8h2v2"/>'
+  };
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[name]||p.dashboard}</svg>`;
+ }
+ function sectionKind(text){const x=norm(text);if(/project identity|profile/.test(x))return'user';if(/performance|progress/.test(x))return'chart';if(/milestone|tcc|date|schedule/.test(x))return'calendar';if(/contract|budget|commercial|cost/.test(x))return'briefcase';if(/billing|invoice/.test(x))return'receipt';if(/profit/.test(x))return'trend';if(/poc|exposure/.test(x))return'layers';if(/register/.test(x))return'table';if(/issue|risk/.test(x))return'alert';if(/project/.test(x))return'folder';return'dashboard'}
+ function kpiKind(text){const x=norm(text);if(/^projects?$/.test(x))return'folder';if(/current actual/.test(x))return'chart';if(/spi/.test(x))return'gauge';if(/contract value/.test(x))return'briefcase';if(/net cash/.test(x))return'wallet';if(/critical/.test(x))return'alert';if(/schedule/.test(x))return'calendar';if(/eot/.test(x))return'clock';return'dashboard'}
+ function issueKind(title){const x=norm(title);if(x.includes('issue status'))return'status';if(x.includes('criticality'))return'critical';if(x.includes('issue owner'))return'owner';if(x.includes('alfanar department'))return'dept';if(x.includes('sec priority'))return'priority';if(x.includes('vendor'))return'vendor';if(x.includes('issue type'))return'type';return'total'}
+ function ensureIcons(){
+  d.querySelectorAll('.cardhead .title').forEach(t=>{if(t.id==='riskTitle')return;let i=t.querySelector(':scope > .v155-global-title-icon');if(!i){i=d.createElement('span');i.className='v155-global-title-icon';t.prepend(i)}i.innerHTML=svg(sectionKind(t.textContent));t.classList.add('v155-global-title')});
+  d.querySelectorAll('#topKpis .kpi').forEach(k=>{const label=k.querySelector('label');if(!label)return;let i=k.querySelector(':scope > .v155-kpi-icon');if(!i){i=d.createElement('span');i.className='v155-kpi-icon';k.appendChild(i)}i.innerHTML=svg(kpiKind(label.textContent))});
+  // Issue summary + analytics icons are applied by this first-render observer too, so no filter/reset is required.
+  const summary=[...d.querySelectorAll('#riskTopMetrics .metric')],keys=['total','open','closed'];
+  summary.forEach((card,idx)=>{let el=card.querySelector(':scope > .v154-summary-icon');if(!el){el=d.createElement('span');el.className='v154-summary-icon';card.appendChild(el)}el.innerHTML=svg(keys[idx]||'total')});
+  d.querySelectorAll('#v151IssueAnalytics .v151-analytics-card:not(.v155-action-health)').forEach(card=>{const title=card.querySelector('.v151-card-title');if(!title)return;const kind=issueKind(title.textContent);card.dataset.v154Kind=kind;let el=title.querySelector(':scope > .v154-card-icon');if(!el){el=d.createElement('span');el.className='v154-card-icon';title.prepend(el)}el.innerHTML=svg(kind)});
+  const ah=d.querySelector('#v151IssueAnalytics .v155-action-health .v151-card-title');if(ah){let el=ah.querySelector('.v155-action-icon');if(!el){el=d.createElement('span');el.className='v155-action-icon';ah.prepend(el)}el.innerHTML=svg('action')}
+ }
+ function master(){try{if(typeof projects!=='undefined'&&Array.isArray(projects)&&projects.length)return projects}catch(e){};for(const a of [w.projects,w.portfolio,w.allProjects,w.state&&w.state.projects])if(Array.isArray(a)&&a.length)return a;return []}
+ function rows(){
+  const code=canon(d.getElementById('projectFilter')?.value||'');const all=master();
+  if(code){const p=all.find(x=>canon(x.code||x.project_code)===code);return p?[p]:[]}
+  try{if(typeof filterProjects==='function'){const a=filterProjects();if(Array.isArray(a))return a}}catch(e){}
+  try{if(typeof w.filterProjects==='function'){const a=w.filterProjects();if(Array.isArray(a))return a}}catch(e){}
+  const type=clean(d.getElementById('typeFilter')?.value||''),status=clean(d.getElementById('statusFilter')?.value||'');
+  return all.filter(p=>(!type||clean(p.project_type)===type)&&(!status||clean(p.status)===status));
+ }
+ function ensureSmartCash(){return;
+  const host=d.getElementById('topKpis');if(!host)return;const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));if(!card)return;
+  const a=rows();const cin=a.reduce((s,p)=>s+num(p.cash_inflow),0),cout=a.reduce((s,p)=>s+num(p.cash_outflow),0),stored=a.reduce((s,p)=>s+num(p.net_cash),0),net=(cin!==0||cout!==0)?cin-cout:stored;
+  card.classList.add('v156-smart-net-card');
+  const value=card.querySelector(':scope > .value, .value');if(value){value.textContent=money(net);let head=value.parentElement?.classList.contains('v156-net-head')?value.parentElement:null;if(!head){head=d.createElement('div');head.className='v156-net-head';value.parentNode.insertBefore(head,value);head.appendChild(value)}let tr=head.querySelector('.v156-net-trend');if(!tr){tr=d.createElement('span');tr.className='v156-net-trend';head.appendChild(tr)}const cls=net<0?'down':net>0?'up':'flat';tr.className='v156-net-trend '+cls;tr.innerHTML=net<0?'<span class="arr">↓</span> Downtrend':net>0?'<span class="arr">↑</span> Uptrend':'<span class="arr">→</span> Balanced';}
+  let mini=card.querySelector('.v141-cash-mini');if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}mini.classList.add('v156-smart-cash');
+  const coverage=cout>0?Math.max(0,Math.min(100,cin/cout*100)):(cin>0?100:0);const sig=[cin,cout,net,coverage.toFixed(1)].join('|');
+  if(mini.dataset.v156Sig!==sig||!mini.querySelector('.v156-flow-row')){mini.dataset.v156Sig=sig;mini.innerHTML=`<div class="v156-flow-row"><div class="v156-flow-step in" title="${esc(money(cin))}"><div class="top"><span class="ico">↗</span><span>Cash In</span></div><div class="amt">${esc(money(cin).replace('SAR ',''))}</div></div><div class="v156-flow-arrow">→</div><div class="v156-flow-step out" title="${esc(money(cout))}"><div class="top"><span class="ico">↘</span><span>Cash Out</span></div><div class="amt">${esc(money(cout).replace('SAR ',''))}</div></div></div><div class="v156-coverage" title="Cash In as a percentage of Cash Out"><div class="lab">Coverage</div><div class="v156-coverage-track"><span style="width:${coverage.toFixed(1)}%"></span></div><div class="pct">${coverage.toFixed(0)}%</div></div>`}
+ }
+ let raf=0,busy=false;function sync(){if(busy)return;busy=true;try{ensureIcons()}finally{busy=false}}function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;sync()})}
+ // Observe the whole dashboard, not only nodes that happen to exist before Excel data has finished rendering.
+ const startObserver=()=>{if(w.__v156Observer||!d.documentElement)return;w.__v156Observer=new MutationObserver(schedule);w.__v156Observer.observe(d.documentElement,{childList:true,subtree:true})};
+ d.addEventListener('change',e=>{if(e.target?.matches?.('#projectFilter,#typeFilter,#statusFilter,#regionFilter,#v142PerfVariance,#v141RegType,#v141RegStatus,#v141RegVariance,#v141RegCash,#riskProjectFilter,#riskTypeFilter,#v141IssueVendor,#v141IssueOwner,#v141IssueStatus,#riskTradeFilter,#riskPriorityFilter,#v141IssueAging'))schedule()},true);
+ d.addEventListener('click',e=>{if(e.target?.closest?.('#resetFilters,.reset,.v69-unit-tab,#v77UploadBtn,#resetRiskFilters,#v154IssueClearFilters,#v153IssueClearFilters,[data-v152-clear-all],[data-v152-clear-dim],.v152-clickable-stat'))schedule()},true);
+ startObserver();
+ if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{sync();startObserver();[20,80,180,400,900,1800,3200].forEach(t=>setTimeout(sync,t))},{once:true});else{sync();[20,80,180,400,900,1800].forEach(t=>setTimeout(sync,t))}
+ w.addEventListener('load',()=>{sync();[30,120,350,800,1600,3000].forEach(t=>setTimeout(sync,t))},{once:true});
+ w.__v156Sync=sync;
+})();
+</script>
+
+<!-- v157: unified first render --><script>window.__v157UnifiedFirstRender=true;</script>
+
+<!-- v158: readable smart net cash card -->
+<style id="v158-readable-netcash-style">
+#topKpis .kpi.v158-net-card{padding-right:16px!important;overflow:hidden!important}
+#topKpis .kpi.v158-net-card>label{display:block;padding-right:70px!important;margin-bottom:6px!important}
+#topKpis .v158-net-primary{display:block;margin-top:10px;min-width:0;padding-right:70px}
+#topKpis .v158-net-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+#topKpis .v158-net-value{font-size:22px;line-height:1;font-weight:950;letter-spacing:-.45px;color:#173454;min-width:0}
+#topKpis .tone-red .v158-net-value{color:#d94f4f}
+#topKpis .tone-green .v158-net-value{color:#14955f}
+#topKpis .v158-net-trend{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;padding:4px 8px;border-radius:999px;font-size:9px;line-height:1;font-weight:950;white-space:nowrap;border:1px solid transparent}
+#topKpis .v158-net-trend .arr{font-size:12px;line-height:1}
+#topKpis .v158-net-trend.down{color:#c83f45;background:#fff0f1;border-color:#f1c7cb}
+#topKpis .v158-net-trend.up{color:#10865a;background:#ebf9f2;border-color:#c2e6d4}
+#topKpis .v158-net-trend.flat{color:#64798b;background:#f2f5f8;border-color:#dbe5ec}
+#topKpis .v158-net-state{font-size:11px;line-height:1.25;font-weight:800}
+#topKpis .v158-net-state.down{color:#b24347}
+#topKpis .v158-net-state.up{color:#147c57}
+#topKpis .v158-net-state.flat{color:#64798b}
+#topKpis .v158-net-value{font-size:20px;line-height:1.08;font-weight:950;letter-spacing:-.2px}
+#topKpis .v158-cash-pair{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);align-items:center;gap:8px}
+#topKpis .v158-cash-metric{min-width:0}
+#topKpis .v158-net-state{margin-top:7px;font-size:10px;line-height:1.2;font-weight:800;color:#667b8f}
+#topKpis .v158-net-state.down{color:#b94a50}
+#topKpis .v158-net-state.up{color:#18875d}
+#topKpis .v158-cash-strip{margin-top:10px;padding-top:10px;border-top:1px solid #dfe8ef}
+#topKpis .v158-cash-pair{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:5px;align-items:center}
+#topKpis .v158-cash-metric{min-width:0;border:1px solid #dbe7f0;border-radius:10px;background:#fff;padding:7px 8px;box-shadow:0 3px 8px rgba(21,63,96,.035)}
+#topKpis .v158-cash-metric span{display:block;font-size:7.5px;line-height:1;text-transform:uppercase;letter-spacing:.55px;font-weight:950;color:#718497;white-space:nowrap}
+#topKpis .v158-cash-metric strong{display:block;margin-top:5px;font-size:12px;line-height:1;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#topKpis .v158-cash-metric.in strong{color:#11865a}
+#topKpis .v158-cash-metric.out strong{color:#b97800}
+#topKpis .v158-cash-arrow{display:flex;align-items:center;justify-content:center;color:#7b91a5;font-size:15px;font-weight:950}
+#topKpis .v158-coverage-row{display:grid;grid-template-columns:auto minmax(40px,1fr) auto;gap:6px;align-items:center;margin-top:8px}
+#topKpis .v158-coverage-row>span,#topKpis .v158-coverage-row>strong{font-size:8px;font-weight:900;color:#6b7f91;white-space:nowrap}
+#topKpis .v158-coverage-row>strong{color:#254d70}
+#topKpis .v158-coverage-track{height:5px;border-radius:999px;background:#e3ebf2;overflow:hidden}
+#topKpis .v158-coverage-track>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#18a06a,#0f6fbd)}
+@media(max-width:1280px){#topKpis .v158-net-value{font-size:19px}#topKpis .v158-net-trend{font-size:7px;padding:4px 5px}#topKpis .v158-cash-metric{padding:6px}#topKpis .v158-cash-metric strong{font-size:11px}}
+</style>
+<script id="v158-readable-netcash-script">
+(function(){
+ const d=document,w=window;if(w.__v158ReadableNetCash)return;w.__v158ReadableNetCash=true;
+ const clean=v=>String(v==null?'':v).trim(),num=v=>{const n=Number(v);return Number.isFinite(n)?n:0},canon=v=>clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+ const money=v=>{const n=num(v),a=Math.abs(n),sg=n<0?'-':'';if(a>=1e9)return `SAR ${sg}${(a/1e9).toFixed(1)}B`;if(a>=1e6)return `SAR ${sg}${(a/1e6).toFixed(1)}M`;if(a>=1e3)return `SAR ${sg}${(a/1e3).toFixed(1)}K`;return `SAR ${sg}${a.toFixed(0)}`};
+ function master(){try{if(typeof projects!=='undefined'&&Array.isArray(projects)&&projects.length)return projects}catch(e){};for(const a of [w.projects,w.portfolio,w.allProjects,w.state&&w.state.projects])if(Array.isArray(a)&&a.length)return a;return []}
+ function rows(){const code=canon(d.getElementById('projectFilter')?.value||'');const all=master();if(code){const p=all.find(x=>canon(x.code||x.project_code)===code);return p?[p]:[]}try{if(typeof filterProjects==='function'){const a=filterProjects();if(Array.isArray(a))return a}}catch(e){}try{if(typeof w.filterProjects==='function'){const a=w.filterProjects();if(Array.isArray(a))return a}}catch(e){}return all}
+ function build(){const host=d.getElementById('topKpis');if(!host)return;const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));if(!card)return;const a=rows(),cin=a.reduce((s,p)=>s+num(p.cash_inflow),0),cout=a.reduce((s,p)=>s+num(p.cash_outflow),0),stored=a.reduce((s,p)=>s+num(p.net_cash),0),net=(cin!==0||cout!==0)?cin-cout:stored,raw=cout>0?cin/cout*100:(cin>0?100:0),bar=Math.max(0,Math.min(100,raw));const sig=[cin,cout,net,raw.toFixed(1)].join('|');if(card.dataset.v158Sig===sig&&card.querySelector('.v158-cash-strip'))return;card.dataset.v158Sig=sig;card.classList.remove('v156-smart-net-card','tone-red','tone-green');card.classList.add('v158-net-card',net<0?'tone-red':'tone-green');[...card.children].forEach(el=>{if(el.matches('label,.v155-kpi-icon'))return;el.remove()});const state=net<0?'down':net>0?'up':'flat';card.insertAdjacentHTML('beforeend',`<div class="v158-net-primary"><div class="v158-net-value">${esc(money(net))}</div><div class="v158-net-meta"><span class="v158-net-trend ${state}">${net<0?'<span class="arr">↓</span> Downtrend':net>0?'<span class="arr">↑</span> Uptrend':'<span class="arr">→</span> Balanced'}</span><div class="v158-net-state ${state}">${net<0?'Negative liquidity position':net>0?'Positive liquidity position':'Balanced liquidity position'}</div></div></div><div class="v158-cash-strip"><div class="v158-cash-pair"><div class="v158-cash-metric in" title="${esc(money(cin))}"><span>Cash In</span><strong>${esc(money(cin).replace('SAR ',''))}</strong></div><div class="v158-cash-arrow">→</div><div class="v158-cash-metric out" title="${esc(money(cout))}"><span>Cash Out</span><strong>${esc(money(cout).replace('SAR ',''))}</strong></div></div><div class="v158-coverage-row"><span>Cash coverage</span><div class="v158-coverage-track"><i style="width:${bar.toFixed(1)}%"></i></div><strong>${raw.toFixed(0)}%</strong></div></div>`)}
+ let raf=0,busy=false;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;if(busy)return;busy=true;try{build()}finally{busy=false}})}
+ const obs=new MutationObserver(schedule);if(d.documentElement)obs.observe(d.documentElement,{childList:true,subtree:true});d.addEventListener('change',schedule,true);d.addEventListener('click',e=>{if(e.target?.closest?.('#resetFilters,.reset,.v69-unit-tab,#v77UploadBtn'))schedule()},true);if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{build();[20,100,300,800].forEach(t=>setTimeout(build,t))},{once:true});else{build();[20,100,300].forEach(t=>setTimeout(build,t))}w.addEventListener('load',()=>[30,150,500].forEach(t=>setTimeout(build,t)),{once:true});w.__v158BuildCash=build;
 })();
 </script>
 </body>
