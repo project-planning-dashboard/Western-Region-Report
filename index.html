@@ -851,7 +851,7 @@ body.v126-atomic *,body.v126-atomic *::before,body.v126-atomic *::after{
         <div class="list" id="typeSummary"></div>
       </div>
       <div class="card">
-        <div class="cardhead"><div><div class="title">Performance by Project</div><div class="subtitle">Worst project variances within current filters.</div></div><span class="badge">Worst 15</span></div>
+        <div class="cardhead"><div><div class="title">Performance by Project</div><div class="subtitle">Worst project variances within current filters.</div></div><div id="v142PerfFilterWrap" class="v142-perf-filter"><label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select></div><span class="badge">Worst 15</span></div>
         <div class="list" id="projectSummaryList"></div>
       </div>
     </div>
@@ -1408,6 +1408,7 @@ init();
               <div class="title">Performance by Project</div>
               <div class="subtitle">Worst project variances within current filters.</div>
             </div>
+            <div id="v142PerfFilterWrap" class="v142-perf-filter"><label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select></div>
             <span class="badge">Worst 15</span>
           </div>
           <div class="list" id="projectSummaryList"></div>
@@ -1725,6 +1726,7 @@ init();
                 <div class="title">Performance by Project</div>
                 <div class="subtitle">Worst project variances within the current portfolio filters.</div>
               </div>
+              <div id="v142PerfFilterWrap" class="v142-perf-filter"><label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select></div>
               <span class="badge">Worst 15</span>
             </div>
             <div class="list" id="projectSummaryList"></div>
@@ -1909,6 +1911,7 @@ window.renderSummaries = function(data){
                 <div class="title">Performance by Project</div>
                 <div class="subtitle">Worst project variances within the current portfolio filters.</div>
               </div>
+              <div id="v142PerfFilterWrap" class="v142-perf-filter"><label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select></div>
               <span class="badge">Worst 15</span>
             </div>
             <div class="list" id="projectSummaryList"></div>
@@ -2649,7 +2652,7 @@ window.renderSummaries = function(data){
           <div class="list" id="typeSummary"></div>
         </div>
         <div class="card">
-          <div class="cardhead"><div><div class="title">Performance by Project</div><div class="subtitle">Worst project variances within the current portfolio filters.</div></div><span class="badge">Worst 15</span></div>
+          <div class="cardhead"><div><div class="title">Performance by Project</div><div class="subtitle">Worst project variances within the current portfolio filters.</div></div><div id="v142PerfFilterWrap" class="v142-perf-filter"><label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select></div><span class="badge">Worst 15</span></div>
           <div class="list" id="projectSummaryList"></div>
         </div>
       </div>
@@ -3575,9 +3578,11 @@ body.v53-settled .v35-perf-row:hover{
     return `${m[1]}-${String(Number(m[2])).padStart(3,'0')}`;
   };
   const validRemark=v=>{
+    // A remark must be text. Excel cells with an accidental date number-format must never become a Date/Invalid Date remark.
+    if(v instanceof Date)return false;
     const r=cleanRemark(v),x=r.toLowerCase().replace(/[.\s]+$/,'');
     if(!r)return false;
-    return !['-','--','n/a','na','none','nil','not available','no data','invalid','#n/a','#value!','#ref!'].includes(x);
+    return !['-','--','n/a','na','none','nil','not available','no data','invalid','invalid date','#n/a','#value!','#ref!'].includes(x);
   };
   const pct=v=>{if(v==null||v==='')return null;let n=Number(v);if(!Number.isFinite(n))return null;return Math.abs(n)<=1.5?n*100:n};
   const iso=v=>{
@@ -3593,6 +3598,10 @@ body.v53-settled .v35-perf-row:hover{
   function westernOnly(){for(let i=projects.length-1;i>=0;i--){if(clean(projects[i].region).toLowerCase()!=='western')projects.splice(i,1)}}
   function sheetRows(wb,name){const ws=wb.Sheets[name]||wb.Sheets[wb.SheetNames[0]];return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null})}
   function parseSchedule(wb){
+    // v139: retain the exact no-cache Planning workbook used for this page load.
+    // Project-level remarks can query it directly if any intermediate map is stale/missing.
+    window.__v139PlanningWorkbook=wb;
+    window.__v139PlanningSource={file:wb?.__sourceFile||'Planning.xlsx',lastModified:wb?.__lastModified||'',loadedAt:Date.now()};
     try{if(typeof window.__v97UpdateMilestonesFromWorkbook==='function')window.__v97UpdateMilestonesFromWorkbook(wb)}catch(e){console.warn('Milestone workbook parse',e)}
 
     // v138 — one authoritative LIVE remarks map from the Planning.xlsx fetched on THIS page load.
@@ -3726,7 +3735,7 @@ body.v53-settled .v35-perf-row:hover{
     const url=new URL(file,location.href);url.searchParams.set('_latest',Date.now());
     const res=await fetch(url.href,{cache:'no-store',headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}});
     if(!res.ok)throw new Error(file+' HTTP '+res.status);
-    const wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true});
+    const wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:false,cellStyles:true});
     wb.__sourceFile=file;wb.__lastModified=res.headers.get('last-modified')||'';return wb;
   }
   async function githubSync(){
@@ -3734,6 +3743,8 @@ body.v53-settled .v35-perf-row:hover{
     if(location.protocol==='file:'){setSync('','Embedded Data · GitHub sync activates online');return}
     if(!window.XLSX){setSync('error','Excel engine unavailable');return}
     setSync('','Syncing Excel…');
+    window.__v137LivePlanningReady=false;
+    window.__v138LivePlanningReady=false;
     try{
       const [schedule,costing,issues]=await Promise.all([fetchWorkbook(FILES.schedule),fetchWorkbook(FILES.costing),fetchWorkbook(FILES.issues)]);
       // GitHub must follow the exact same successful sequence as Manual Upload:
@@ -3747,11 +3758,11 @@ body.v53-settled .v35-perf-row:hover{
         window.__alfanarUnitApi.rebuild();
       if(typeof window.renderAll==='function')window.renderAll();
       // Keep the approved project-level composition authoritative after the live-data render.
-      queueMicrotask(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
-      requestAnimationFrame(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{window.__v129RenderRemarks?.()}catch(e){}});
+      queueMicrotask(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{(window.__v139RenderRemarks||window.__v129RenderRemarks)?.()}catch(e){}});
+      requestAnimationFrame(()=>{try{window.__v128RenderFinalSchedule?.()}catch(e){} try{(window.__v139RenderRemarks||window.__v129RenderRemarks)?.()}catch(e){}});
       window.__v137LiveSyncSucceeded=true;
       setTimeout(patchProjectsCard,250);setSync('ok','Latest Excel synced · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-    }catch(err){window.__v137LiveSyncSucceeded=false;window.__v137LivePlanningReady=false;console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
+    }catch(err){window.__v137LiveSyncSucceeded=false;window.__v137LivePlanningReady=false;window.__v138LivePlanningReady=false;window.__v139PlanningWorkbook=null;console.warn('GitHub Excel sync fallback:',err);setSync('error','Using embedded data');patchProjectsCard()}
   }
   const prev=window.renderAll;
   if(typeof prev==='function'&&!window.__v54Wrapped){window.__v54Wrapped=true;window.renderAll=function(){const r=prev.apply(this,arguments);setTimeout(patchProjectsCard,120);return r}}
@@ -4989,7 +5000,7 @@ body.v69-unit-filtered #regionFilter{display:none!important}
   }
   async function readFile(file){
     const buf=await file.arrayBuffer();
-    return XLSX.read(buf,{type:'array',cellDates:true,cellStyles:true});
+    return XLSX.read(buf,{type:'array',cellDates:false,cellStyles:true});
   }
   async function handleFiles(files){
     if(!files.length)return;
@@ -5712,7 +5723,7 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
  function enforce(){
    removeOverview();
    if(!selected())return;
-   try{if(typeof window.__v129RenderRemarks==='function')window.__v129RenderRemarks();}catch(e){console.warn('v129 remarks refresh',e)}
+   try{if(typeof (window.__v139RenderRemarks||window.__v129RenderRemarks)==='function')(window.__v139RenderRemarks||window.__v129RenderRemarks)();}catch(e){console.warn('v129 remarks refresh',e)}
  }
  const prev=window.renderAll;
  if(typeof prev==='function'&&!window.__v129ReferenceWrapped){
@@ -5758,7 +5769,7 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
       }
       // Remarks belong directly under the milestone matrix. Restore only when absent.
       if(grid.querySelector('.v50-date-card')&&!grid.querySelector('.v104-remarks')){
-        try{w.__v129RenderRemarks?.()}catch(e){}
+        try{(w.__v139RenderRemarks||w.__v129RenderRemarks)?.()}catch(e){}
       }
     } finally { busy=false; }
   }
@@ -5839,7 +5850,7 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
       const p=Array.isArray(w.projects)?w.projects.find(x=>clean(x?.code).toUpperCase()===code):null;
       if(p)p.schedule_remarks=live;
     }
-    try{w.__v129RenderRemarks?.()}catch(e){}
+    try{(w.__v139RenderRemarks||w.__v129RenderRemarks)?.()}catch(e){}
   }
   d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter')){queueMicrotask(refresh);setTimeout(refresh,120)}},true);
   w.addEventListener('load',()=>{setTimeout(refresh,1100);setTimeout(refresh,1900)},{once:true});
@@ -5858,7 +5869,7 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
     if(live?.remark&&Array.isArray(w.projects)){
       const p=w.projects.find(x=>canon(x?.code)===code); if(p)p.schedule_remarks=live.remark;
     }
-    try{w.__v129RenderRemarks?.()}catch(e){}
+    try{(w.__v139RenderRemarks||w.__v129RenderRemarks)?.()}catch(e){}
   }
   w.__v138RemarkAudit=function(code){code=canon(code);const src=(w.__v138LivePlanningRemarks||w.__v137LivePlanningRemarks)?.[code]||null;return {code,liveReady:!!(w.__v138LivePlanningReady||w.__v137LivePlanningReady),source:src,project:Array.isArray(w.projects)?w.projects.find(x=>canon(x?.code)===code)||null:null};};
   d.addEventListener('change',e=>{if(e.target?.matches('#projectFilter,#typeFilter,#statusFilter,#regionFilter')){queueMicrotask(refresh);setTimeout(refresh,100);setTimeout(refresh,350)}},true);
@@ -6336,7 +6347,6 @@ body.v129-project-mode #projectIdentityGrid .profile-group-v29.v129-overview-rem
             <div class="profile-eyebrow-v29">Selected Project Profile</div>
             <div class="profile-code-v29">${esc(p.code)}</div>
             <h2>${esc(p.name||'—')}</h2>
-            ${isClosed ? `<div class="closed-subtitle-v115"><span class="line"></span><span class="txt">Successfully Closed / Achieved</span></div>` : ''}
             <div class="profile-meta-v29">
               <span class="profile-meta-chip-v29">${esc(projectType)}</span>
               <span class="profile-meta-chip-v29">${esc(city)}</span>
@@ -8822,7 +8832,7 @@ let n=0; const iv=setInterval(()=>{ place(); if(++n>14) clearInterval(iv); },500
   function projectDelay(p){ if(has(p?.tcc_variance_days)) return num(p.tcc_variance_days); const c=Date.parse(p?.contract_tcc||''); const f=Date.parse(p?.forecast_tcc||''); return (Number.isFinite(c)&&Number.isFinite(f))?Math.round((f-c)/86400000):0; }
   function toneByVariance(v){ const n=num(v); return n<-5?'red':n<0?'amber':'green'; }
   function spiTone(v){ const n=num(v); return n<0.95?'#d9534f':n<1?'#ef9a12':'#176db3'; }
-  function render(){ const host=byId('topKpis'); if(!host) return; const rows=data(); const selected=selectedCode(); const single=!!selected; const w=weighted(rows); const contract=rows.reduce((a,p)=>a+num(p.original_contract),0); const netCash=rows.reduce((a,p)=>a+num(p.net_cash),0); const critical=rows.filter(p=>num(p.net_cash)<0).length; const running=rows.filter(p=>String(p.status||'').toLowerCase()==='running').length; const closed=rows.filter(p=>String(p.status||'').toLowerCase()==='closed').length; const variance=w.variance; const varTone=toneByVariance(variance); const p=single ? (rows.find(x=>String(x.code)===selected) || rows[0] || null) : null; const delay=projectDelay(p); const eot=String(p?.eot_status||'').trim() || 'Not Available'; const scheduleTone=delay>0?'red':delay<0?'green':'blue'; const spi=w.spi; const spiClr=spiTone(spi); const spiDeg=!has(spi)?0:Math.max(0,Math.min(360,spi>=1?360:spi*360)); host.innerHTML=`${single?'':`<div class="kpi tone-blue"><label>Projects</label><div class="value">${rows.length}</div><div class="sub">${rows.length} total loaded</div><div class="v88-status-row"><span class="v88-status-pill run">${running} Running</span><span class="v88-status-pill close">${closed} Closed</span></div></div>`}<div class="kpi tone-blue"><label>Current Actual</label><div class="value">${pct(w.actual)}</div><div class="sub">Planned ${pct(w.planned)}</div><div class="v88-progress-mini"><div class="lab">Plan</div><div class="v88-progress-track plan"><span style="width:${Math.max(0,Math.min(100,num(w.planned)))}%"></span></div><div class="pct">${pct(w.planned)}</div><div class="lab">Actual</div><div class="v88-progress-track actual"><span style="width:${Math.max(0,Math.min(100,num(w.actual)))}%"></span></div><div class="pct">${pct(w.actual)}</div></div><div class="v88-var-chip ${varTone}">Variance ${has(variance)?signedPct(variance):'N/A'}</div></div><div class="kpi tone-red"><label>Portfolio SPI</label><div class="v88-spi-wrap"><div class="v88-spi-ring" style="--deg:${spiDeg}deg;--clr:${spiClr}"><div class="v88-spi-value">${has(spi)?num(spi).toFixed(2):'N/A'}</div></div><div class="v88-spi-copy"><div class="state" style="color:${spiClr}">${!has(spi)?'No Progress Data':spi<0.95?'Critical SPI':spi<1?'Watchlist SPI':'Healthy SPI'}</div><div class="desc">Earned Value Cost ÷ Planned Value Cost</div></div></div></div><div class="kpi tone-blue"><label>Contract Value</label><div class="value">${money(contract)}</div><div class="sub">Combined original contract value</div><div class="v88-kpi-note">${w.eligible.length} progress-weighted projects used in planning metrics</div></div><div class="kpi ${netCash<0?'tone-red':'tone-green'}"><label>Net Cash</label><div class="value">${money(netCash)}</div><div class="sub">Consolidated net cash position</div></div>${single?`<div class="kpi tone-${scheduleTone}"><label>Schedule Health</label><div class="value">${signedDays(delay)}</div><div class="sub">Forecast TCC vs contractual baseline</div><div class="v88-major ${scheduleTone}">${esc(String(p?.forecast_tcc||'').trim() ? 'Forecast TCC ' + new Date(p.forecast_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No forecast date')}</div><div class="v88-kpi-note">${esc(String(p?.contract_tcc||'').trim() ? 'Contractual TCC ' + new Date(p.contract_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No contractual TCC')}</div></div><div class="kpi ${/approval/i.test(eot)?'tone-red':'tone-blue'}"><label>EOT Status</label><div class="value" style="font-size:28px">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div>`:`<div class="kpi tone-red" id="v88bCriticalCard"><label>Critical Projects</label><div class="value">${critical}</div><div class="sub">Projects with negative net cash</div>${critical?'<div class="v88-link-note">Click to filter register</div>':''}</div>`}`; const c=byId('v88bCriticalCard'); if(c){c.style.cursor='pointer'; c.onclick=()=>{const body=byId('projectRegisterBody'); if(body) body.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});};}}
+  function render(){ const host=byId('topKpis'); if(!host) return; const rows=data(); const selected=selectedCode(); const single=!!selected; const w=weighted(rows); const contract=rows.reduce((a,p)=>a+num(p.original_contract),0); const cashIn=rows.reduce((a,p)=>a+num(p.cash_inflow),0); const cashOut=rows.reduce((a,p)=>a+num(p.cash_outflow),0); const netCashStored=rows.reduce((a,p)=>a+num(p.net_cash),0); const netCash=(cashIn!==0||cashOut!==0)?cashIn-cashOut:netCashStored; const critical=rows.filter(p=>num(p.net_cash)<0).length; const running=rows.filter(p=>String(p.status||'').toLowerCase()==='running').length; const closed=rows.filter(p=>String(p.status||'').toLowerCase()==='closed').length; const variance=w.variance; const varTone=toneByVariance(variance); const p=single ? (rows.find(x=>String(x.code)===selected) || rows[0] || null) : null; const delay=projectDelay(p); const eot=String(p?.eot_status||'').trim() || 'Not Available'; const scheduleTone=delay>0?'red':delay<0?'green':'blue'; const spi=w.spi; const spiClr=spiTone(spi); const spiDeg=!has(spi)?0:Math.max(0,Math.min(360,spi>=1?360:spi*360)); host.innerHTML=`${single?'':`<div class="kpi tone-blue"><label>Projects</label><div class="value">${rows.length}</div><div class="sub">${rows.length} total loaded</div><div class="v88-status-row"><span class="v88-status-pill run">${running} Running</span><span class="v88-status-pill close">${closed} Closed</span></div></div>`}<div class="kpi tone-blue"><label>Current Actual</label><div class="value">${pct(w.actual)}</div><div class="sub">Planned ${pct(w.planned)}</div><div class="v88-progress-mini"><div class="lab">Plan</div><div class="v88-progress-track plan"><span style="width:${Math.max(0,Math.min(100,num(w.planned)))}%"></span></div><div class="pct">${pct(w.planned)}</div><div class="lab">Actual</div><div class="v88-progress-track actual"><span style="width:${Math.max(0,Math.min(100,num(w.actual)))}%"></span></div><div class="pct">${pct(w.actual)}</div></div><div class="v88-var-chip ${varTone}">Variance ${has(variance)?signedPct(variance):'N/A'}</div></div><div class="kpi tone-red"><label>Portfolio SPI</label><div class="v88-spi-wrap"><div class="v88-spi-ring" style="--deg:${spiDeg}deg;--clr:${spiClr}"><div class="v88-spi-value">${has(spi)?num(spi).toFixed(2):'N/A'}</div></div><div class="v88-spi-copy"><div class="state" style="color:${spiClr}">${!has(spi)?'No Progress Data':spi<0.95?'Critical SPI':spi<1?'Watchlist SPI':'Healthy SPI'}</div><div class="desc">Earned Value Cost ÷ Planned Value Cost</div></div></div></div><div class="kpi tone-blue"><label>Contract Value</label><div class="value">${money(contract)}</div><div class="sub">Combined original contract value</div><div class="v88-kpi-note">${w.eligible.length} progress-weighted projects used in planning metrics</div></div><div class="kpi ${netCash<0?'tone-red':'tone-green'}"><label>Net Cash</label><div class="value">${money(netCash)}</div><div class="sub">Consolidated net cash position</div><div class="v141-cash-mini v149-primary-cash"><div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cashIn))}">${esc(money(cashIn).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cashOut))}">${esc(money(cashOut).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${netCash<0?'neg':'pos'}" title="${esc(money(netCash))}">${esc(money(netCash).replace('SAR ',''))}</div></div></div></div>${single?`<div class="kpi tone-${scheduleTone}"><label>Schedule Health</label><div class="value">${signedDays(delay)}</div><div class="sub">Forecast TCC vs contractual baseline</div><div class="v88-major ${scheduleTone}">${esc(String(p?.forecast_tcc||'').trim() ? 'Forecast TCC ' + new Date(p.forecast_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No forecast date')}</div><div class="v88-kpi-note">${esc(String(p?.contract_tcc||'').trim() ? 'Contractual TCC ' + new Date(p.contract_tcc).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : 'No contractual TCC')}</div></div><div class="kpi ${/approval/i.test(eot)?'tone-red':'tone-blue'}"><label>EOT Status</label><div class="value" style="font-size:28px">${esc(eot)}</div><div class="sub">Extension of time / claim status</div></div>`:`<div class="kpi tone-red" id="v88bCriticalCard"><label>Critical Projects</label><div class="value">${critical}</div><div class="sub">Projects with negative net cash</div>${critical?'<div class="v88-link-note">Click to filter register</div>':''}</div>`}`; const c=byId('v88bCriticalCard'); if(c){c.style.cursor='pointer'; c.onclick=()=>{const body=byId('projectRegisterBody'); if(body) body.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});};}}
   function queue(){ clearTimeout(window.__v88bkpiT); window.__v88bkpiT=setTimeout(render,150); setTimeout(render,650); setTimeout(render,1250);} const prev=window.renderAll; if(typeof prev==='function'&&!window.__v88bWrapped){ window.__v88bWrapped=true; window.renderAll=function(){ const r=prev.apply(this,arguments); queue(); return r; }; } ['projectFilter','typeFilter','statusFilter','regionFilter'].forEach(id=>byId(id)?.addEventListener('change',queue)); d.addEventListener('click',e=>{ if(e.target.closest('.v69-unit-tab')) queue(); },true); d.addEventListener('DOMContentLoaded',()=>{ setTimeout(render,1200); setTimeout(render,2400); },{once:true}); window.addEventListener('load',()=>{ setTimeout(render,1800); setTimeout(render,3200); },{once:true}); setTimeout(render,3500);
 })();
 </script>
@@ -9559,7 +9569,7 @@ body.v104-filtering .toolbar{pointer-events:auto}
     const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);
     return m?`${m[1]}-${String(Number(m[2])).padStart(3,'0')}`:s.replace(/[_/]/g,'-');
   };
-  const validRemark=v=>{const r=clean(v),x=r.toLowerCase().replace(/[.\s]+$/,'');return !!r&&!['-','--','n/a','na','none','nil','not available','no data','invalid','#n/a','#value!','#ref!'].includes(x)};
+  const validRemark=v=>{if(v instanceof Date)return false;const r=clean(v),x=r.toLowerCase().replace(/[.\s]+$/,'');return !!r&&!['-','--','n/a','na','none','nil','not available','no data','invalid','invalid date','#n/a','#value!','#ref!'].includes(x)};
   let busy=false, timer=0;
 
   function selectedCode(){
@@ -9584,17 +9594,48 @@ body.v104-filtering .toolbar{pointer-events:auto}
     }
     return null;
   }
+  function workbookRemark(code){
+    const wb=w.__v139PlanningWorkbook;
+    if(!wb||!w.XLSX)return '';
+    code=canonicalCode(code);
+    // Highest-priority sheet first. Within each sheet the last valid project row wins.
+    const specs=[['Detailed Update',1,20],['Marketing-Related Sheet',1,23],['Updated Progress % + TCC',1,15]];
+    for(const [sheetName,codeFallback,remarkFallback] of specs){
+      const ws=wb.Sheets?.[sheetName]; if(!ws)continue;
+      const rows=w.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+      let cc=codeFallback, rc=remarkFallback;
+      // Resolve headers by exact meaning, while retaining known-column fallbacks.
+      for(let r=0;r<Math.min(rows.length,8);r++){
+        const row=rows[r]||[];
+        for(let c=0;c<row.length;c++){
+          const h=clean(row[c]).toLowerCase().replace(/\s+/g,' ');
+          if(h==='project code'||h.includes('project code'))cc=c;
+          if(h==='remarks'||h==='remark')rc=c;
+        }
+      }
+      let found='';
+      for(let r=0;r<rows.length;r++){
+        const row=rows[r]||[];
+        if(canonicalCode(row[cc])!==code)continue;
+        const candidate=clean(row[rc]);
+        if(validRemark(candidate))found=candidate;
+      }
+      if(found)return found;
+    }
+    return '';
+  }
   function remarkFor(code){
     code=canonicalCode(code);
     // Latest fetched Planning.xlsx is authoritative whenever live sync succeeded.
     const live=clean((w.__v138LivePlanningRemarks||w.__v137LivePlanningRemarks)?.[code]?.remark);
     if(validRemark(live))return live;
+    const directLive=clean(workbookRemark(code));
+    if(validRemark(directLive))return directLive;
     const p=projectRecord(code);
     for(const v of [p?.schedule_remarks,p?.planning_remarks,p?.remarks,p?.remark]){
       const r=clean(v); if(validRemark(r))return r;
     }
-    if(w.__v138LivePlanningReady||w.__v137LivePlanningReady)return '';
-    // Embedded remarks are fallback only when the online Planning.xlsx failed to load.
+    // If the newest workbook has no valid remark for this code, use the embedded snapshot only as a safety fallback.
     const v104=clean(w.__v104DetailedRemarks?.[code]?.remark); if(validRemark(v104))return v104;
     try{if(typeof embeddedRemarks!=='undefined'){const r=clean(embeddedRemarks?.[code]?.remark);if(validRemark(r))return r;}}catch(e){}
     const rmap=clean(w.remarksMap?.[code]?.remark); if(validRemark(rmap))return rmap;
@@ -9674,6 +9715,9 @@ body.v104-filtering .toolbar{pointer-events:auto}
     if(busy)return; busy=true;
     try{removeOverview(); if(selectedCode())renderRemarks();}finally{busy=false}
   }
+  // v139: single approved remarks renderer used by live sync, filters and late schedule rerenders.
+  w.__v139RenderRemarks=renderRemarks;
+  w.__v139RefreshProjectDetail=enforce;
   function queue(){clearTimeout(timer);queueMicrotask(enforce);requestAnimationFrame(enforce);timer=setTimeout(enforce,120);setTimeout(enforce,420)}
   const grid=d.getElementById('projectIdentityGrid');
   if(grid&&w.MutationObserver)new MutationObserver(()=>queue()).observe(grid,{childList:true,subtree:true});
@@ -9683,6 +9727,1638 @@ body.v104-filtering .toolbar{pointer-events:auto}
   if(typeof prev==='function'&&!w.__v135RenderWrapped){w.__v135RenderWrapped=true;w.renderAll=function(){const r=prev.apply(this,arguments);queue();return r};try{renderAll=w.renderAll}catch(e){}}
   if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',queue,{once:true});else queue();
   w.addEventListener('load',()=>{queue();setTimeout(enforce,900);setTimeout(enforce,1800)},{once:true});
+})();
+</script>
+
+<style id="v139-final-cleanup-style">
+/* v139 — final targeted cleanup only; no layout redesign. */
+.closed-subtitle-v115{display:none!important}
+</style>
+
+<style id="v140-data-integrity-style">
+/* v140 — data-integrity only. No visual redesign. */
+#projectRegisterSection tr.v140-positive-hidden{display:none!important}
+</style>
+<script id="v140-data-integrity-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v140DataIntegrity)return; w.__v140DataIntegrity=true;
+  let busy=false, negOnly=false;
+  const byId=id=>d.getElementById(id);
+  const canonical=v=>{
+    const s=String(v??'').trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+    const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);
+    return m?`${m[1]}-${String(Number(m[2])).padStart(3,'0')}`:s.replace(/[_/]/g,'-');
+  };
+  function projectNetCash(code){
+    code=canonical(code);
+    const pools=[w.projects,w.portfolio,w.allProjects,w.state?.projects,w.__projects,w.__allProjects];
+    for(const arr of pools){
+      if(!Array.isArray(arr))continue;
+      const p=arr.find(x=>canonical(x?.code||x?.project_code||x?.projectCode)===code);
+      if(p){const n=Number(p.net_cash); if(Number.isFinite(n))return n;}
+    }
+    return null;
+  }
+  function moneyFromText(t){
+    const x=String(t||'').replace(/,/g,'').toUpperCase();
+    const m=x.match(/([+-]?\s*\d+(?:\.\d+)?)\s*([BMK])?/);
+    if(!m)return null;
+    let n=Number(m[1].replace(/\s/g,'')); if(!Number.isFinite(n))return null;
+    const mul=m[2]==='B'?1e9:m[2]==='M'?1e6:m[2]==='K'?1e3:1;
+    return n*mul;
+  }
+  function enforceNegativeRows(){
+    const sel=byId('registerCashV32');
+    const active=negOnly || sel?.value==='critical';
+    if(!active)return;
+    const body=byId('projectRegisterBody'); if(!body||busy)return;
+    busy=true;
+    try{
+      const table=body.closest('table');
+      const heads=[...(table?.querySelectorAll('thead th')||[])];
+      let cashIdx=heads.findIndex(h=>/net\s*cash/i.test(h.textContent||''));
+      if(cashIdx<0)cashIdx=11;
+      [...body.querySelectorAll('tr')].forEach(row=>{
+        const cells=[...row.querySelectorAll('td')]; if(cells.length<2)return;
+        const code=(cells[0]?.textContent||'').match(/(?:PE|EL|PM)[-_/ ]?\d{2,4}/i)?.[0]||'';
+        let net=code?projectNetCash(code):null;
+        if(net==null)net=moneyFromText(cells[cashIdx]?.textContent||'');
+        if(net!=null && !(net<0)) row.remove();
+      });
+      const badge=byId('projectCountBadge');
+      if(badge){const count=[...body.querySelectorAll('tr')].filter(r=>r.querySelectorAll('td').length>1).length;badge.textContent=`${count} Projects`;}
+    }finally{busy=false}
+  }
+  function activateNegative(){
+    negOnly=true;
+    const sel=byId('registerCashV32');
+    if(sel){sel.value='critical';sel.dispatchEvent(new Event('change',{bubbles:true}));}
+    queueMicrotask(enforceNegativeRows);requestAnimationFrame(enforceNegativeRows);setTimeout(enforceNegativeRows,120);
+    byId('projectRegisterSection')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function wireCritical(){
+    const card=[...(byId('topKpis')?.querySelectorAll('.kpi')||[])].find(k=>/Critical Projects/i.test(k.textContent||''));
+    if(!card)return;
+    card.style.cursor='pointer';
+    card.title='Show projects with negative net cash only';
+    card.onclick=activateNegative;
+  }
+  d.addEventListener('change',e=>{
+    if(e.target?.id==='registerCashV32'){negOnly=e.target.value==='critical';queueMicrotask(enforceNegativeRows);}
+  },true);
+  d.addEventListener('click',e=>{
+    if(e.target?.closest('#registerResetV32,#resetFilters,.reset'))negOnly=false;
+  },true);
+  const top=byId('topKpis'); if(top&&w.MutationObserver)new MutationObserver(()=>{wireCritical();}).observe(top,{childList:true,subtree:true});
+  const body=byId('projectRegisterBody'); if(body&&w.MutationObserver)new MutationObserver(()=>{if(negOnly||byId('registerCashV32')?.value==='critical')queueMicrotask(enforceNegativeRows)}).observe(body,{childList:true,subtree:true});
+  wireCritical();
+  w.addEventListener('load',()=>{wireCritical();setTimeout(wireCritical,500);setTimeout(wireCritical,1400)},{once:true});
+})();
+</script>
+
+
+
+<style id="v141-operational-filters-style">
+/* v141 — operational filters and stable KPI/register interactions. Keeps the approved visual language. */
+.v141-register-filters,.v141-issue-filters{
+  display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;align-items:center;margin:14px 0 12px;
+}
+.v141-register-filters input,.v141-register-filters select,.v141-issue-filters input,.v141-issue-filters select{
+  min-height:42px;border:1px solid #d2e2ee;border-radius:12px;padding:0 12px;background:#fff;color:#294055;font-size:12px;font-weight:800;min-width:0;
+}
+.v141-register-filters input,.v141-issue-filters input{grid-column:span 2}
+.v141-filter-reset{min-height:42px;border:1px solid #cbddeb;border-radius:12px;padding:0 14px;background:#eaf4fc;color:#0f6fbd;font-weight:900;cursor:pointer}
+.v141-filter-note{font-size:10px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#6d8194;align-self:center}
+.v141-cash-mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:8px}
+.v141-cash-cell{border:1px solid rgba(29,72,111,.10);background:rgba(255,255,255,.72);border-radius:9px;padding:5px 6px;min-width:0}
+.v141-cash-cell .k{font-size:8px;line-height:1;text-transform:uppercase;letter-spacing:.55px;color:#6b7e91;font-weight:950;margin-bottom:4px}
+.v141-cash-cell .v{font-size:10px;line-height:1.15;font-weight:950;color:#173b63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v141-cash-cell.in .v{color:#168a5b}.v141-cash-cell.out .v{color:#b87905}.v141-cash-cell.net .v.neg{color:#d94f4f}.v141-cash-cell.net .v.pos{color:#168a5b}
+#v88bCriticalCard.v141-active-filter{outline:2px solid #d94f4f;outline-offset:2px}
+#projectRegisterSection .v141-filter-summary{display:flex;gap:7px;flex-wrap:wrap;margin:-3px 0 10px}
+.v141-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:#edf5fb;color:#2d638e;font-size:10px;font-weight:900}
+#riskTopMetrics .metric{min-height:104px}
+#riskTableBody .v141-overdue{color:#d94f4f;font-weight:900}
+#riskTableBody .v141-due-soon{color:#b87905;font-weight:900}
+#riskTableBody .v141-on-time{color:#168a5b;font-weight:900}
+#riskTableBody td{line-height:1.35}
+#riskTableBody .v141-issue-text{min-width:260px;max-width:420px;white-space:normal}
+#riskTableBody .v141-action-text{min-width:240px;max-width:380px;white-space:normal}
+.register-filters-v32{display:none!important}
+@media(max-width:1200px){.v141-register-filters,.v141-issue-filters{grid-template-columns:repeat(3,minmax(150px,1fr))}.v141-register-filters input,.v141-issue-filters input{grid-column:span 1}}
+@media(max-width:760px){.v141-register-filters,.v141-issue-filters{grid-template-columns:1fr}.v141-cash-mini{grid-template-columns:1fr 1fr 1fr}}
+</style>
+<script id="v141-operational-filters-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v141OperationalFilters)return; w.__v141OperationalFilters=true;
+  const byId=id=>d.getElementById(id);
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const clean=s=>String(s==null?'':s).trim();
+  const money=v=>{v=num(v);const a=Math.abs(v),sg=v<0?'-':'';if(a>=1e9)return 'SAR '+sg+(a/1e9).toFixed(1)+'B';if(a>=1e6)return 'SAR '+sg+(a/1e6).toFixed(1)+'M';if(a>=1e3)return 'SAR '+sg+(a/1e3).toFixed(1)+'K';return 'SAR '+sg+a.toFixed(0)};
+  const signedMoney=v=>(num(v)>0?'+':'')+money(v);
+  const pct=v=>has(v)?num(v).toFixed(2)+'%':'—';
+  const signedPct=v=>has(v)?(num(v)>0?'+':'')+num(v).toFixed(2)+'%':'—';
+  const days=v=>has(v)?(num(v)>0?'+':'')+Math.round(num(v))+'d':'—';
+  const uniq=a=>[...new Set(a.map(clean).filter(Boolean))].sort((x,y)=>x.localeCompare(y));
+  const allProjects=()=>{try{return Array.isArray(projects)?projects:[]}catch(e){return Array.isArray(w.projects)?w.projects:[]}};
+  function mainData(){
+    const pf=byId('projectFilter')?.value||'',tf=byId('typeFilter')?.value||'',sf=byId('statusFilter')?.value||'';
+    return allProjects().filter(p=>(!tf||p.project_type===tf)&&(!pf||String(p.code)===String(pf))&&(!sf||p.status===sf));
+  }
+  function setOptions(sel,placeholder,vals){
+    if(!sel)return; const keep=sel.value;
+    sel.innerHTML=`<option value="">${esc(placeholder)}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(vals.includes(keep))sel.value=keep;
+  }
+  function toneVar(v){const x=num(v);return x<=-10?'red':x<0?'amber':'green'}
+  function issueOpen(i){if(typeof w.__v150IssueStatus==='function')return w.__v150IssueStatus(i)!=='Closed';return !/closed|complete|resolved|done/i.test(clean(i.issue_status))}
+  function priorityHigh(i){const x=clean(i.priority_alfanar).toLowerCase();return ['a','b','high','extremely high','critical'].includes(x)||/high|critical/.test(x)}
+  function parseDate(v){if(!v)return null;const x=new Date(v);return Number.isNaN(x.getTime())?null:x}
+  function dayDiff(a,b){const x=parseDate(a),y=parseDate(b);return x&&y?Math.round((x-y)/86400000):null}
+  function issueTarget(i){return parseDate(i.forecast_target)?i.forecast_target:i.planned_target}
+  function issueAging(i){const dt=parseDate(i.date_issued);return dt?Math.max(0,dayDiff(new Date(),dt)):null}
+  function issueDue(i){const t=parseDate(issueTarget(i));if(!t||!issueOpen(i))return null;return dayDiff(t,new Date())}
+
+  const regState={search:'',type:'',status:'',variance:'',cash:'',manager:'',city:'',tcc:'',issues:''};
+  function ensureRegisterFilters(){
+    const sec=byId('projectRegisterSection'),wrap=byId('projectRegisterBody')?.closest('.table-wrap'); if(!sec||!wrap)return;
+    if(byId('v141RegisterFilters'))return;
+    const bar=d.createElement('div');bar.id='v141RegisterFilters';bar.className='v141-register-filters';
+    bar.innerHTML=`
+      <input id="v141RegSearch" placeholder="Search project, code, manager or city">
+      <select id="v141RegType"></select><select id="v141RegStatus"></select><select id="v141RegVariance">
+        <option value="">All Variance Gaps</option><option value="lt5">Variance gap &lt; 5%</option><option value="5to15">Variance gap 5%–15%</option><option value="gt15">Variance gap &gt; 15%</option>
+      </select>
+      <select id="v141RegCash"><option value="">All Net Cash</option><option value="negative">Negative Net Cash</option><option value="positive">Positive / Zero Net Cash</option></select>
+      <select id="v141RegManager"></select><select id="v141RegCity"></select>
+      <select id="v141RegTcc"><option value="">All TCC Status</option><option value="ontrack">On Track / No Delay</option><option value="minor">1–90 Days Delay</option><option value="major">&gt; 90 Days Delay</option><option value="nodate">No TCC Data</option></select>
+      <select id="v141RegIssues"><option value="">All Issue Exposure</option><option value="open">Has Open Issues</option><option value="high">Has High-Priority Open Issues</option><option value="none">No Open Issues</option></select>
+      <button class="v141-filter-reset" id="v141RegReset">Reset Register Filters</button>`;
+    wrap.insertAdjacentElement('beforebegin',bar);
+    const bind=(id,key,event='change')=>byId(id)?.addEventListener(event,e=>{regState[key]=e.target.value;renderRegisterV141(mainData());});
+    bind('v141RegSearch','search','input');bind('v141RegType','type');bind('v141RegStatus','status');bind('v141RegVariance','variance');bind('v141RegCash','cash');bind('v141RegManager','manager');bind('v141RegCity','city');bind('v141RegTcc','tcc');bind('v141RegIssues','issues');
+    byId('v141RegReset')?.addEventListener('click',()=>{Object.keys(regState).forEach(k=>regState[k]='');['v141RegSearch','v141RegType','v141RegStatus','v141RegVariance','v141RegCash','v141RegManager','v141RegCity','v141RegTcc','v141RegIssues'].forEach(id=>{if(byId(id))byId(id).value=''});renderRegisterV141(mainData());});
+  }
+  function syncRegisterOptions(base){
+    setOptions(byId('v141RegType'),'All Project Types',uniq(base.map(p=>p.project_type)));
+    setOptions(byId('v141RegStatus'),'All Statuses',uniq(base.map(p=>p.status)));
+    setOptions(byId('v141RegManager'),'All Project Managers',uniq(base.map(p=>p.project_manager)));
+    setOptions(byId('v141RegCity'),'All Cities / Sites',uniq(base.map(p=>p.city)));
+    for(const [id,k] of [['v141RegType','type'],['v141RegStatus','status'],['v141RegManager','manager'],['v141RegCity','city']]) if(byId(id)&&regState[k])byId(id).value=regState[k];
+  }
+  function filterRegister(base){
+    const q=regState.search.toLowerCase().trim();
+    return base.filter(p=>{
+      if(regState.type&&p.project_type!==regState.type)return false;
+      if(regState.status&&p.status!==regState.status)return false;
+      if(regState.manager&&p.project_manager!==regState.manager)return false;
+      if(regState.city&&p.city!==regState.city)return false;
+      const gap=Math.abs(num(p.variance_pct));
+      if(regState.variance==='lt5'&&!(gap<5))return false;
+      if(regState.variance==='5to15'&&!(gap>=5&&gap<=15))return false;
+      if(regState.variance==='gt15'&&!(gap>15))return false;
+      if(regState.cash==='negative'&&!(num(p.net_cash)<0))return false;
+      if(regState.cash==='positive'&&!(num(p.net_cash)>=0))return false;
+      const td=has(p.tcc_variance_days)?num(p.tcc_variance_days):null;
+      if(regState.tcc==='ontrack'&&!(td!==null&&td<=0))return false;
+      if(regState.tcc==='minor'&&!(td!==null&&td>0&&td<=90))return false;
+      if(regState.tcc==='major'&&!(td!==null&&td>90))return false;
+      if(regState.tcc==='nodate'&&td!==null)return false;
+      const open=(p.issues||[]).filter(issueOpen), high=open.filter(priorityHigh);
+      if(regState.issues==='open'&&!open.length)return false;
+      if(regState.issues==='high'&&!high.length)return false;
+      if(regState.issues==='none'&&open.length)return false;
+      if(q&&!`${p.code||''} ${p.name||''} ${p.project_manager||''} ${p.city||''} ${p.project_type||''}`.toLowerCase().includes(q))return false;
+      return true;
+    });
+  }
+  function renderRegisterV141(data){
+    ensureRegisterFilters();const base=Array.isArray(data)?data:mainData();syncRegisterOptions(base);
+    const rows=filterRegister(base).slice().sort((a,b)=>num(a.net_cash)-num(b.net_cash));
+    const body=byId('projectRegisterBody');if(!body)return;
+    const badge=byId('projectCountBadge');if(badge)badge.textContent=`${rows.length} Projects`;
+    const sub=byId('registerSubtitle');if(sub)sub.textContent=regState.cash==='negative'?'Showing projects with negative net cash only.':'Operational project register with local performance, schedule and issue filters.';
+    body.innerHTML=rows.length?rows.map(p=>{
+      const spi=has(p.planned_pct)&&num(p.planned_pct)!==0?num(p.actual_pct)/num(p.planned_pct):null;
+      const open=(p.issues||[]).filter(issueOpen),high=open.filter(priorityHigh);
+      return `<tr class="${num(p.net_cash)<0?'critical-row':''}">
+        <td><button class="projectlink" onclick="selectProject('${esc(p.code)}')">${esc(p.code)}<br>${esc(p.name||'')}</button></td>
+        <td>${esc(p.project_type||'—')}</td><td>${esc(p.project_manager||'—')}</td><td>${pct(p.planned_pct)}</td><td>${pct(p.actual_pct)}</td>
+        <td><span class="pill ${toneVar(p.variance_pct)}">${signedPct(p.variance_pct)}</span></td><td>${spi==null?'—':spi.toFixed(2)}</td>
+        <td>${money(p.original_contract)}</td><td>${money(p.budget)}</td><td>${money(p.cash_inflow)}</td><td>${money(p.cash_outflow)}</td>
+        <td><span class="${num(p.net_cash)<0?'red':'green'}" style="font-weight:900">${signedMoney(p.net_cash)}</span></td>
+        <td><span class="pill ${num(p.tcc_variance_days)>90?'red':num(p.tcc_variance_days)>0?'amber':'green'}">${days(p.tcc_variance_days)}</span></td>
+        <td title="${high.length} high-priority open / ${open.length} open">${high.length?`<span class="pill red">${high.length} High</span>`:open.length?`<span class="pill amber">${open.length} Open</span>`:'<span class="pill green">0</span>'}</td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="14" class="note">No projects match the selected register filters.</td></tr>';
+  }
+
+  const issueState={project:'',ptype:'',vendor:'',owner:'',status:'',itype:'',priority:'',aging:'',search:''};
+  function allIssuesFor(data){return data.flatMap(p=>(p.issues||[]).map(i=>Object.assign({},i,{_project:p,_type:p.project_type||''})));}
+  function ensureIssueFilters(){
+    const toolbar=byId('riskSearch')?.closest('.toolbar');if(!toolbar)return;
+    if(toolbar.dataset.v141==='1')return;toolbar.dataset.v141='1';toolbar.className='v141-issue-filters';toolbar.removeAttribute('style');
+    toolbar.innerHTML=`<select id="riskProjectFilter"></select><select id="riskTypeFilter"></select><select id="v141IssueVendor"></select><select id="v141IssueOwner"></select>
+      <select id="v141IssueStatus"><option value="">All Statuses (Open + Closed)</option><option value="open">Open Issues</option><option value="closed">Closed Issues</option></select>
+      <select id="riskTradeFilter"></select><select id="riskPriorityFilter"></select>
+      <select id="v141IssueAging"><option value="">All Aging / Target Status</option><option value="overdue">Overdue Target</option><option value="due30">Due in Next 30 Days</option><option value="age90">Open &gt; 90 Days</option><option value="age31">Open 31–90 Days</option><option value="age30">Open ≤ 30 Days</option><option value="notarget">No Target Date</option></select>
+      <input id="riskSearch" placeholder="Search issue, action, vendor/entity or project"><button class="v141-filter-reset" id="resetRiskFilters">Reset Issue Filters</button>`;
+    const binds=[['riskProjectFilter','project'],['riskTypeFilter','ptype'],['v141IssueVendor','vendor'],['v141IssueOwner','owner'],['v141IssueStatus','status'],['riskTradeFilter','itype'],['riskPriorityFilter','priority'],['v141IssueAging','aging']];
+    binds.forEach(([id,key])=>byId(id)?.addEventListener('change',e=>{issueState[key]=e.target.value;renderIssuesV141(mainData(),!!byId('projectFilter')?.value)}));
+    byId('riskSearch')?.addEventListener('input',e=>{issueState.search=e.target.value;renderIssuesV141(mainData(),!!byId('projectFilter')?.value)});
+    byId('resetRiskFilters')?.addEventListener('click',()=>{Object.assign(issueState,{project:'',ptype:'',vendor:'',owner:'',status:'',itype:'',priority:'',aging:'',search:''});renderIssuesV141(mainData(),!!byId('projectFilter')?.value)});
+  }
+  function syncIssueOptions(data,issues){
+    const projs=data.slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+    const ps=byId('riskProjectFilter');if(ps){const keep=issueState.project;ps.innerHTML='<option value="">All Projects</option>'+projs.map(p=>`<option value="${esc(p.code)}">${esc(p.code)} — ${esc(p.name||'')}</option>`).join('');ps.value=projs.some(p=>p.code===keep)?keep:'';}
+    setOptions(byId('riskTypeFilter'),'All Project Types',uniq(data.map(p=>p.project_type)));
+    setOptions(byId('v141IssueVendor'),'All Vendors / Responsible Entities',uniq(issues.map(i=>i.responsible_entity||i.action_by)));
+    setOptions(byId('v141IssueOwner'),'All Issue Owners',uniq(issues.map(i=>i.issue_owner)));
+    setOptions(byId('riskTradeFilter'),'All Issue Types',uniq(issues.map(i=>i.issue_type)));
+    setOptions(byId('riskPriorityFilter'),'All Priorities',uniq(issues.map(i=>i.priority_alfanar)));
+    for(const [id,key] of [['riskTypeFilter','ptype'],['v141IssueVendor','vendor'],['v141IssueOwner','owner'],['riskTradeFilter','itype'],['riskPriorityFilter','priority']])if(byId(id)&&issueState[key])byId(id).value=issueState[key];
+    if(byId('v141IssueStatus'))byId('v141IssueStatus').value=issueState.status;
+    if(byId('v141IssueAging'))byId('v141IssueAging').value=issueState.aging;
+    if(byId('riskSearch'))byId('riskSearch').value=issueState.search;
+  }
+  function filterIssues(data){
+    const all=allIssuesFor(data);syncIssueOptions(data,all);const q=issueState.search.toLowerCase().trim();
+    return all.filter(i=>{
+      const vendor=clean(i.responsible_entity||i.action_by),owner=clean(i.issue_owner),status=clean(i.issue_status),due=issueDue(i),age=issueAging(i),target=issueTarget(i);
+      if(issueState.project&&i.project_code!==issueState.project)return false;
+      if(issueState.ptype&&i._type!==issueState.ptype)return false;
+      if(issueState.vendor&&vendor!==issueState.vendor)return false;
+      if(issueState.owner&&owner!==issueState.owner)return false;
+      if(issueState.status==='open'&&!issueOpen(i))return false;
+      if(issueState.status==='closed'&&issueOpen(i))return false;
+      if(issueState.itype&&i.issue_type!==issueState.itype)return false;
+      if(issueState.priority&&i.priority_alfanar!==issueState.priority)return false;
+      if(issueState.aging==='overdue'&&!(due!==null&&due<0))return false;
+      if(issueState.aging==='due30'&&!(due!==null&&due>=0&&due<=30))return false;
+      if(issueState.aging==='age90'&&!(issueOpen(i)&&age!==null&&age>90))return false;
+      if(issueState.aging==='age31'&&!(issueOpen(i)&&age!==null&&age>=31&&age<=90))return false;
+      if(issueState.aging==='age30'&&!(issueOpen(i)&&age!==null&&age<=30))return false;
+      if(issueState.aging==='notarget'&&target)return false;
+      if(q&&!`${i.project_code||''} ${i.project_name||''} ${i.main_issue||''} ${i.action_required||''} ${i.action_taken||''} ${vendor} ${owner} ${i.issue_type||''} ${i.remarks||''}`.toLowerCase().includes(q))return false;
+      return true;
+    });
+  }
+  function fmtDate(v){const x=parseDate(v);return x?x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'}
+  function renderIssuesV141(data,singleProject=false){
+    ensureIssueFilters();data=Array.isArray(data)?data:mainData();const rows=filterIssues(data);
+    const title=byId('riskTitle'),sub=byId('riskSubtitle'),badge=byId('riskBadge');if(title)title.textContent=singleProject?'Project Issues Log':'Western Region Issues & Actions';if(sub)sub.textContent='Operational issue tracking with vendor/entity, owner, priority, status, target and aging filters.';if(badge)badge.textContent=`${rows.length} Issues`;
+    const openRows=rows.filter(issueOpen),closedRows=rows.filter(i=>!issueOpen(i));
+    const totalRows=rows.length,openPct=totalRows?openRows.length/totalRows*100:0,closedPct=totalRows?closedRows.length/totalRows*100:0;
+    const metrics=byId('riskTopMetrics');if(metrics)metrics.innerHTML=`
+      <div class="metric v151-total"><label>Total Issues</label><div class="mval">${totalRows}</div><div class="msub">Open + Closed issues in the current view</div></div>
+      <div class="metric amber"><label>Open Issues</label><div class="mval">${openRows.length}</div><div class="msub">${openPct.toFixed(1)}% of current issue scope</div></div>
+      <div class="metric green"><label>Closed Issues</label><div class="mval">${closedRows.length}</div><div class="msub">${closedPct.toFixed(1)}% of current issue scope</div></div>`;
+    try{if(typeof w.__v151RenderIssueAnalytics==='function')w.__v151RenderIssueAnalytics(rows)}catch(e){console.warn('v151 analytics',e)}
+    const table=byId('riskTableBody')?.closest('table');if(table){const tr=table.querySelector('thead tr');if(tr)tr.innerHTML='<th>Project</th><th>Project Type</th><th>Critical Issue</th><th>Priority</th><th>Issue Type</th><th>Vendor / Responsible Entity</th><th>Owner</th><th>Required Action</th><th>Date Issued</th><th>Target Date</th><th>Aging / Due</th><th>Status</th>';}
+    const body=byId('riskTableBody');if(!body)return;
+    body.innerHTML=rows.length?rows.map(i=>{
+      const pri=clean(i.priority_alfanar).toLowerCase(),pc=priorityHigh(i)?'red':/medium|c/.test(pri)?'amber':'blue';const due=issueDue(i),age=issueAging(i),target=issueTarget(i);const dueText=due!==null?(due<0?`${Math.abs(due)}d overdue`:due===0?'Due today':`Due in ${due}d`):(age!==null?`${age}d open`:'No date');const dueCls=due!==null&&due<0?'v141-overdue':due!==null&&due<=30?'v141-due-soon':'v141-on-time';const vendor=clean(i.responsible_entity||i.action_by)||'—';
+      return `<tr><td><button class="projectlink" title="${esc(i.project_code)} — ${esc(i.project_name||i._project?.name||'')}" onclick="selectProject('${esc(i.project_code)}')">${esc(i.project_code)}</button></td><td>${esc(i._type||'—')}</td><td class="v141-issue-text"><strong>${esc(i.main_issue||'—')}</strong></td><td><span class="pill ${pc}">${esc(i.priority_alfanar||'—')}</span></td><td>${esc(i.issue_type||'—')}</td><td>${esc(vendor)}</td><td>${esc(i.issue_owner||'—')}</td><td class="v141-action-text">${esc(i.action_required||i.action_taken||'—')}</td><td>${fmtDate(i.date_issued)}</td><td>${fmtDate(target)}</td><td class="${dueCls}">${esc(dueText)}</td><td><span class="pill ${issueOpen(i)?'amber':'green'}">${esc(typeof w.__v150IssueStatus==='function'?w.__v150IssueStatus(i):(issueOpen(i)?'Open':'Closed'))}</span></td></tr>`;
+    }).join(''):'<tr><td colspan="12" class="note">No issues match the selected operational filters.</td></tr>';
+  }
+
+  function patchCashKpi(){
+    const host=byId('topKpis');if(!host)return;const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));if(!card)return;
+    const data=mainData(),cin=data.reduce((a,p)=>a+num(p.cash_inflow),0),cout=data.reduce((a,p)=>a+num(p.cash_outflow),0),net=data.reduce((a,p)=>a+num(p.net_cash),0);
+    let mini=card.querySelector('.v141-cash-mini');if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}
+    mini.innerHTML=`<div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cin))}">${esc(money(cin).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cout))}">${esc(money(cout).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${net<0?'neg':'pos'}" title="${esc(signedMoney(net))}">${esc(signedMoney(net).replace('SAR ',''))}</div></div>`;
+  }
+  function wireCritical(){
+    const card=byId('v88bCriticalCard')||[...(byId('topKpis')?.querySelectorAll('.kpi')||[])].find(k=>/Critical Projects/i.test(k.textContent||''));if(!card)return;
+    card.style.cursor='pointer';card.title='Filter Project Register to negative net cash only';card.onclick=()=>{regState.cash='negative';ensureRegisterFilters();if(byId('v141RegCash'))byId('v141RegCash').value='negative';renderRegisterV141(mainData());card.classList.add('v141-active-filter');setTimeout(()=>card.classList.remove('v141-active-filter'),1500);byId('projectRegisterSection')?.scrollIntoView({behavior:'smooth',block:'start'});};
+  }
+  function enforce(){ensureRegisterFilters();renderRegisterV141(mainData());renderIssuesV141(mainData(),!!byId('projectFilter')?.value);patchCashKpi();wireCritical();}
+  w.renderProjectRegister=renderRegisterV141;try{renderProjectRegister=renderRegisterV141}catch(e){}
+  w.renderRiskSection=renderIssuesV141;try{renderRiskSection=renderIssuesV141}catch(e){}
+  w.__v141RenderRegister=renderRegisterV141;w.__v141RenderIssues=renderIssuesV141;
+  const prev=w.renderAll;if(typeof prev==='function'&&!w.__v141Wrapped){w.__v141Wrapped=true;w.renderAll=function(){const r=prev.apply(this,arguments);[0,80,240,600].forEach(t=>setTimeout(enforce,t));return r};try{renderAll=w.renderAll}catch(e){}}
+  d.addEventListener('change',e=>{if(e.target?.matches('#typeFilter,#projectFilter,#statusFilter,#regionFilter'))setTimeout(enforce,40)},true);
+  const top=byId('topKpis');if(top&&w.MutationObserver){let mt=0;new MutationObserver(()=>{clearTimeout(mt);mt=setTimeout(()=>{patchCashKpi();wireCritical()},30)}).observe(top,{childList:true,subtree:true})}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(enforce,100),{once:true});else setTimeout(enforce,100);
+  w.addEventListener('load',()=>{[200,900,1800].forEach(t=>setTimeout(enforce,t))},{once:true});
+})();
+</script>
+
+<style id="v142-stable-controller-style">
+/* v142 — one final controller after every legacy render. */
+.v142-perf-filter{display:flex;align-items:center;gap:7px;margin-left:auto}
+.v142-perf-filter label{font-size:9px;font-weight:950;letter-spacing:.65px;text-transform:uppercase;color:#6b7e91;white-space:nowrap}
+.v142-perf-filter select{height:32px;border:1px solid #cfe0ed;border-radius:10px;background:#fff;color:#294055;padding:0 9px;font-size:10px;font-weight:900;outline:none}
+.v142-perf-filter select:focus{border-color:#176db3;box-shadow:0 0 0 2px rgba(23,109,179,.10)}
+#topKpis .kpi.v142-critical-active{outline:2px solid #d94f4f;outline-offset:2px}
+#projectRegisterSection.v142-critical-mode .card{box-shadow:0 10px 26px rgba(217,79,79,.10)}
+@media(max-width:800px){.v142-perf-filter{width:100%;margin-top:7px}.v142-perf-filter select{flex:1}.cardhead:has(#v142PerfVariance){flex-wrap:wrap}}
+</style>
+<script id="v142-stable-controller-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v142StableController)return;w.__v142StableController=true;
+  const byId=id=>d.getElementById(id);
+  const clean=v=>String(v==null?'':v).trim();
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const pct=v=>has(v)?num(v).toFixed(2)+'%':'—';
+  const signedPct=v=>has(v)?(num(v)>0?'+':'')+num(v).toFixed(2)+'%':'—';
+  const money=v=>{v=num(v);const a=Math.abs(v),sg=v<0?'-':'';if(a>=1e9)return 'SAR '+sg+(a/1e9).toFixed(1)+'B';if(a>=1e6)return 'SAR '+sg+(a/1e6).toFixed(1)+'M';if(a>=1e3)return 'SAR '+sg+(a/1e3).toFixed(1)+'K';return 'SAR '+sg+a.toFixed(0)};
+  const signedMoney=v=>(num(v)>0?'+':'')+money(v);
+  let perfVariance='';
+  let criticalMode=false;
+  let finalTimer=0;
+  let regBusy=false,perfBusy=false,typePerfBusy=false,kpiBusy=false;
+
+  function allProjects(){
+    try{if(Array.isArray(projects))return projects}catch(e){}
+    return Array.isArray(w.projects)?w.projects:[];
+  }
+  function mainData(){
+    const tf=byId('typeFilter')?.value||'',pf=byId('projectFilter')?.value||'',sf=byId('statusFilter')?.value||'';
+    return allProjects().filter(p=>(!tf||p.project_type===tf)&&(!pf||String(p.code)===String(pf))&&(!sf||p.status===sf));
+  }
+  function scheduleFinal(delays=[0,80,260,720,1700]){
+    delays.forEach(t=>setTimeout(finalize,t));
+  }
+
+  /* ----- Cash card: keep Cash In / Cash Out / Net visible after every render ----- */
+  function patchCashKpi(){
+    if(kpiBusy)return;kpiBusy=true;
+    try{
+      const host=byId('topKpis');if(!host)return;
+      const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));
+      if(!card)return;
+      const data=mainData(),cin=data.reduce((a,p)=>a+num(p.cash_inflow),0),cout=data.reduce((a,p)=>a+num(p.cash_outflow),0),net=data.reduce((a,p)=>a+num(p.net_cash),0);
+      let mini=card.querySelector('.v141-cash-mini');
+      if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}
+      const html=`<div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cin))}">${esc(money(cin).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cout))}">${esc(money(cout).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${net<0?'neg':'pos'}" title="${esc(signedMoney(net))}">${esc(signedMoney(net).replace('SAR ',''))}</div></div>`;
+      if(mini.innerHTML!==html)mini.innerHTML=html;
+    }finally{kpiBusy=false}
+  }
+
+  /* ----- Project Register: always finish on the v141 advanced renderer ----- */
+  function renderAdvancedRegister(){
+    if(regBusy||typeof w.__v141RenderRegister!=='function')return;
+    regBusy=true;
+    try{w.__v141RenderRegister(mainData())}catch(e){console.warn('v142 register finalizer',e)}
+    finally{setTimeout(()=>{regBusy=false},0)}
+    byId('projectRegisterSection')?.classList.toggle('v142-critical-mode',criticalMode);
+  }
+  function setCriticalFilter(){
+    criticalMode=true;
+    renderAdvancedRegister();
+    const sel=byId('v141RegCash');
+    if(sel){sel.value='negative';sel.dispatchEvent(new Event('change',{bubbles:true}));}
+    // One more final pass after the v141 state listener has committed.
+    setTimeout(renderAdvancedRegister,0);setTimeout(renderAdvancedRegister,100);setTimeout(renderAdvancedRegister,420);
+    const card=findCriticalCard();if(card){card.classList.add('v142-critical-active');setTimeout(()=>card.classList.remove('v142-critical-active'),1600)}
+    byId('projectRegisterSection')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function findCriticalCard(){return [...(byId('topKpis')?.querySelectorAll('.kpi')||[])].find(k=>/Critical Projects/i.test(k.textContent||''))||null}
+
+  /* ----- Performance by Project variance-range filter ----- */
+  function ensurePerfFilter(){
+    const box=byId('projectSummaryList'),card=box?.closest('.card'),head=card?.querySelector('.cardhead');if(!box||!card||!head)return;
+    let wrap=byId('v142PerfFilterWrap');
+    if(!wrap){
+      wrap=d.createElement('div');wrap.id='v142PerfFilterWrap';wrap.className='v142-perf-filter';
+      wrap.innerHTML=`<label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select>`;
+      const badge=head.querySelector('.badge');if(badge)head.insertBefore(wrap,badge);else head.appendChild(wrap);
+    }
+    const sel=byId('v142PerfVariance');
+    if(sel&&!sel.dataset.v145Bound){sel.dataset.v145Bound='1';sel.addEventListener('change',e=>{perfVariance=e.target.value;renderProjectPerformance();renderTypePerformanceByVariance();});}
+    if(sel&&sel.value!==perfVariance)sel.value=perfVariance;
+  }
+  function variancePass(p){
+    const v=num(p.variance_pct);
+    // Executive variance filter is for under-performing projects only.
+    if(!(v<0))return false;
+    const g=Math.abs(v);
+    if(perfVariance==='lt5')return g<5;
+    if(perfVariance==='5to15')return g>=5&&g<=15;
+    if(perfVariance==='gt15')return g>15;
+    return true;
+  }
+  function perfRow(p){
+    const v=num(p.variance_pct),tone=v<=-10?'red':v<0?'amber':'green';
+    const plan=Math.max(0,Math.min(100,num(p.planned_pct))),act=Math.max(0,Math.min(100,num(p.actual_pct)));
+    return `<div class="perf-row-v32" data-v142-project="${esc(p.code)}" role="button" tabindex="0" title="${esc(p.code)} — ${esc(p.name||'')}"><div class="perf-head-v32"><div class="perf-name-v32" title="${esc(p.code)} — ${esc(p.name||'')}">${esc(p.code)}</div><div class="perf-var-v32 ${tone}">${signedPct(p.variance_pct)}</div></div><div class="perf-bars-v32"><div class="perf-bar-v32"><div class="lbl">Plan</div><div class="perf-track-v32"><div class="perf-fill-v32 plan" style="width:${plan}%"></div></div><div class="val">${pct(p.planned_pct)}</div></div><div class="perf-bar-v32"><div class="lbl">Actual</div><div class="perf-track-v32"><div class="perf-fill-v32 actual" style="width:${act}%"></div></div><div class="val">${pct(p.actual_pct)}</div></div></div></div>`;
+  }
+  function weightedTypeProgress(rows){
+    const eligible=(rows||[]).filter(p=>num(p.original_contract)>0&&has(p.planned_pct)&&has(p.actual_pct));
+    const contract=eligible.reduce((a,p)=>a+num(p.original_contract),0);
+    const plannedValue=eligible.reduce((a,p)=>a+(num(p.planned_pct)/100)*num(p.original_contract),0);
+    const earnedValue=eligible.reduce((a,p)=>a+(num(p.actual_pct)/100)*num(p.original_contract),0);
+    const planned=contract>0?plannedValue/contract*100:0;
+    const actual=contract>0?earnedValue/contract*100:0;
+    return {eligible,planned,actual,variance:actual-planned};
+  }
+  function typePerfRowV144(r){
+    const tone=r.variance<=-10?'red':r.variance<0?'amber':'green';
+    const plan=Math.max(0,Math.min(100,num(r.planned))),act=Math.max(0,Math.min(100,num(r.actual)));
+    return `<div class="v35-perf-row" data-v144-type="${esc(r.name)}" role="button" tabindex="0" title="Filter portfolio to ${esc(r.name)}"><div class="v35-perf-name"><strong>${esc(r.name)}</strong><span>${r.count} projects · ${r.eligibleCount} weighted</span></div><div class="v35-dual-track"><div class="v35-plan" style="width:${plan}%"></div><div class="v35-actual" style="width:${act}%"></div></div><div class="v35-num plan">${pct(r.planned)}</div><div class="v35-num actual">${pct(r.actual)}</div><div class="v35-var ${tone}">${signedPct(r.variance)}</div></div>`;
+  }
+  function renderTypePerformanceByVariance(){
+    if(typePerfBusy)return;typePerfBusy=true;
+    try{
+      const host=byId('typeSummary');if(!host)return;
+      const source=mainData().filter(p=>has(p.planned_pct)&&has(p.actual_pct)&&variancePass(p));
+      const groups={};source.forEach(p=>{const k=clean(p.project_type)||'Unclassified';(groups[k] ||= []).push(p)});
+      const rows=Object.entries(groups).map(([name,arr])=>{const wgt=weightedTypeProgress(arr);return {name,count:arr.length,eligibleCount:wgt.eligible.length,planned:wgt.planned,actual:wgt.actual,variance:wgt.variance}}).filter(r=>r.eligibleCount>0).sort((a,b)=>a.variance-b.variance);
+      const head='<div class="v35-perf-head"><div>Code / Type</div><div>Plan vs Actual</div><div>Plan</div><div>Actual</div><div>Variance</div></div>';
+      host.className='v35-perf-chart';
+      host.innerHTML=rows.length?head+rows.map(typePerfRowV144).join(''):'<div class="perf-empty-v33">No project types match the selected negative variance range.</div>';
+      const badge=byId('typeCountBadge');if(badge)badge.textContent=`${rows.length} Types`;
+      const card=host.closest('.card'),sub=card?.querySelector('.cardhead .subtitle');if(sub)sub.textContent=perfVariance?'Contract-weighted performance for project types within the selected negative variance range.':'Contract-weighted performance by project type for projects with negative variance.';
+    }finally{setTimeout(()=>{typePerfBusy=false},0)}
+  }
+
+  function renderProjectPerformance(){
+    if(perfBusy)return;perfBusy=true;
+    try{
+      ensurePerfFilter();const box=byId('projectSummaryList');if(!box)return;
+      const rows=mainData().filter(p=>has(p.planned_pct)&&has(p.actual_pct)&&variancePass(p)).sort((a,b)=>num(a.variance_pct)-num(b.variance_pct)).slice(0,15);
+      box.className='perf-chart-v32';
+      const html=rows.length?rows.map(perfRow).join(''):'<div class="perf-empty-v32">No projects match the selected variance range.</div>';
+      if(box.innerHTML!==html)box.innerHTML=html;
+      const card=box.closest('.card'),badge=card?.querySelector('.cardhead .badge');if(badge)badge.textContent=perfVariance?`${rows.length} Shown`:'Worst 15 Negative';
+      renderTypePerformanceByVariance();
+    }finally{setTimeout(()=>{perfBusy=false},0)}
+  }
+
+  function finalize(){
+    patchCashKpi();renderAdvancedRegister();
+    try{if(typeof w.__v141RenderIssues==='function')w.__v141RenderIssues(mainData(),!!byId('projectFilter')?.value)}catch(e){}
+    ensurePerfFilter();renderProjectPerformance();renderTypePerformanceByVariance();
+    const card=findCriticalCard();if(card){card.style.cursor='pointer';card.title='Filter Project Register to negative net cash only'}
+  }
+
+  /* Capture Critical Projects before legacy onclick handlers can replace the intended filter. */
+  d.addEventListener('click',function(e){
+    const card=e.target?.closest?.('#topKpis .kpi');
+    if(card&&/Critical Projects/i.test(card.textContent||'')){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();setCriticalFilter();return;
+    }
+    const typeRow=e.target?.closest?.('#typeSummary [data-v144-type]');
+    if(typeRow){const type=typeRow.getAttribute('data-v144-type');const tf=byId('typeFilter');if(tf&&type){e.preventDefault();tf.value=type;tf.dispatchEvent(new Event('change',{bubbles:true}));}return;}
+    const row=e.target?.closest?.('#projectSummaryList [data-v142-project]');
+    if(row){const code=row.getAttribute('data-v142-project');if(code&&typeof w.selectProject==='function'){e.preventDefault();w.selectProject(code)}}
+  },true);
+  d.addEventListener('keydown',function(e){const typeRow=e.target?.closest?.('#typeSummary [data-v144-type]');if(typeRow&&(e.key==='Enter'||e.key===' ')){e.preventDefault();const type=typeRow.getAttribute('data-v144-type');const tf=byId('typeFilter');if(tf&&type){tf.value=type;tf.dispatchEvent(new Event('change',{bubbles:true}));}return;}const row=e.target?.closest?.('#projectSummaryList [data-v142-project]');if(row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();const code=row.getAttribute('data-v142-project');if(code&&typeof w.selectProject==='function')w.selectProject(code)}},true);
+
+  /* Global Reset is handled once here. Old Reset listeners are intentionally bypassed. */
+  d.addEventListener('click',function(e){
+    const reset=e.target?.closest?.('#resetFilters');if(!reset)return;
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    criticalMode=false;perfVariance='';
+    ['regionFilter','typeFilter','projectFilter','statusFilter'].forEach(id=>{const el=byId(id);if(el)el.value=''});
+    // Ensure the advanced controls exist, then reset their stateful filters.
+    renderAdvancedRegister();
+    byId('v141RegReset')?.click();
+    try{if(typeof w.__v141RenderIssues==='function')w.__v141RenderIssues(mainData(),false)}catch(e){}
+    byId('resetRiskFilters')?.click();
+    const allBtn=d.querySelector('#v69UnitTabs .v69-unit-tab[data-unit="All Units"]');
+    if(allBtn)allBtn.click();else if(typeof w.renderAll==='function')w.renderAll();
+    scheduleFinal([20,120,350,850,1800,2800]);
+  },true);
+
+  /* Any main/unit filter eventually lands on the same final renderer. */
+  d.addEventListener('change',e=>{if(e.target?.matches?.('#typeFilter,#projectFilter,#statusFilter,#regionFilter'))scheduleFinal([20,140,500,1200])},true);
+  d.addEventListener('click',e=>{if(e.target?.closest?.('.v69-unit-tab'))scheduleFinal([80,260,750,1800,3000])},true);
+
+  /* If a legacy renderer rewrites these areas, immediately restore the final version. */
+  const top=byId('topKpis');if(top&&w.MutationObserver){let t=0;new MutationObserver(()=>{if(kpiBusy)return;clearTimeout(t);t=setTimeout(patchCashKpi,15)}).observe(top,{childList:true,subtree:true})}
+  const reg=byId('projectRegisterBody');if(reg&&w.MutationObserver){let t=0;new MutationObserver(()=>{if(regBusy)return;clearTimeout(t);t=setTimeout(renderAdvancedRegister,20)}).observe(reg,{childList:true,subtree:true})}
+  const perf=byId('projectSummaryList');if(perf&&w.MutationObserver){let t=0;new MutationObserver(()=>{if(perfBusy)return;clearTimeout(t);t=setTimeout(renderProjectPerformance,20)}).observe(perf,{childList:true,subtree:true})}
+  const typeHost=byId('typeSummary');if(typeHost&&w.MutationObserver){let t=0;new MutationObserver(()=>{if(typePerfBusy)return;clearTimeout(t);t=setTimeout(renderTypePerformanceByVariance,25)}).observe(typeHost,{childList:true,subtree:true})}
+
+  // Expose final hooks for diagnostics / future extensions.
+  w.__v142SetPerfVariance=function(v){perfVariance=v||'';ensurePerfFilter();renderProjectPerformance();renderTypePerformanceByVariance();};
+  w.__v142Finalize=finalize;
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>scheduleFinal([120,500,1400,3000]),{once:true});else scheduleFinal([80,400,1200]);
+  w.addEventListener('load',()=>scheduleFinal([200,900,2200,3600]),{once:true});
+})();
+</script>
+
+<style id="v143-source-integrity-style">
+/* v143 — source-integrity only; preserve approved design. */
+#v143PerfFilterWrap{display:flex;align-items:center;gap:7px;margin-left:auto}
+#v143PerfFilterWrap label{font-size:9px;font-weight:950;letter-spacing:.65px;text-transform:uppercase;color:#6b7e91;white-space:nowrap}
+#v143PerfVariance{height:32px;border:1px solid #cfe0ed;border-radius:10px;background:#fff;color:#294055;padding:0 9px;font-size:10px;font-weight:900;outline:none}
+@media(max-width:800px){#v143PerfFilterWrap{width:100%;margin-top:7px}#v143PerfVariance{flex:1}}
+</style>
+<script id="v143-source-integrity-script">
+(function(){
+  const d=document,w=window;if(w.__v143SourceIntegrity)return;w.__v143SourceIntegrity=true;
+  const byId=id=>d.getElementById(id), clean=v=>String(v==null?'':v).replace(/_x000B_/g,'\n').replace(/\r/g,'').trim();
+  const canon=v=>{const s=String(v??'').trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');const m=s.match(/^([A-Z]{1,5})[-_/]?0*(\d{1,4})$/);return m?`${m[1]}-${String(Number(m[2])).padStart(3,'0')}`:s.replace(/[_/]/g,'-')};
+  const projectsArr=()=>{try{return Array.isArray(projects)?projects:[]}catch(e){return Array.isArray(w.projects)?w.projects:[]}};
+  function cellText(cell){
+    if(!cell)return '';
+    const vals=[cell.v,cell.w];
+    for(const v of vals){
+      if(typeof v==='string'){const s=clean(v);if(s&&!/^invalid date$/i.test(s))return s;}
+    }
+    return '';
+  }
+  function validRemark(v){const s=clean(v),x=s.toLowerCase().replace(/[.\s]+$/,'');return !!s&&!['-','--','n/a','na','none','nil','not available','no data','invalid','invalid date','#n/a','#value!','#ref!'].includes(x)}
+  function directCell(ws,col,row){return cellText(ws?.[col+row])}
+  function findCol(rows,needles,fallback){for(let r=0;r<Math.min(rows.length,8);r++){for(let c=0;c<(rows[r]||[]).length;c++){const h=clean(rows[r][c]).toLowerCase().replace(/\s+/g,' ');if(needles.some(n=>h===n||h.includes(n)))return c}}return fallback}
+  function colName(n){let s='';for(n++;n;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s}
+  function rebuildRemarks(wb){
+    if(!wb||!w.XLSX)return false;const out=Object.create(null);
+    const specs=[['Updated Progress % + TCC',1,2,15,1],['Marketing-Related Sheet',1,2,23,2],['Detailed Update',1,2,20,3]];
+    for(const [name,fc,fn,fr,priority] of specs){const ws=wb.Sheets?.[name];if(!ws)continue;const rows=w.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});const cc=findCol(rows,['project code'],fc),nc=findCol(rows,['project name'],fn),rc=findCol(rows,['remarks','remark'],fr);const ccol=colName(cc),ncol=colName(nc),rcol=colName(rc);
+      for(let i=0;i<rows.length;i++){const rowNo=i+1,code=canon(directCell(ws,ccol,rowNo)||rows[i]?.[cc]);if(!/^[A-Z]{1,5}-\d{3,4}$/.test(code))continue;let remark=directCell(ws,rcol,rowNo);if(!validRemark(remark)){const raw=rows[i]?.[rc];if(typeof raw==='string'&&validRemark(raw))remark=clean(raw)}if(!validRemark(remark))continue;const prev=out[code];if(!prev||priority>prev.priority||(priority===prev.priority&&rowNo>=prev.row))out[code]={remark,name:directCell(ws,ncol,rowNo)||clean(rows[i]?.[nc]),priority,row:rowNo,sheet:name};}
+    }
+    const arr=projectsArr();arr.forEach(p=>{const x=out[canon(p.code)];if(x)p.schedule_remarks=x.remark;else if(/^invalid date$/i.test(clean(p.schedule_remarks)))p.schedule_remarks=''});
+    w.__v143LivePlanningRemarks=out;w.__v138LivePlanningRemarks=out;w.__v137LivePlanningRemarks=out;
+    try{(w.__v139RenderRemarks||w.__v129RenderRemarks)?.()}catch(e){}
+    return true;
+  }
+  function normalizeStatus(v){const s=clean(v);if(!s||/^invalid(?: date)?$/i.test(s))return '';const x=s.toLowerCase();if(/closed|resolved|complete|completed|done/.test(x))return 'Closed';if(/open|active|pending|ongoing|in progress/.test(x))return 'Open';return 'Open'}
+  function toISO(v){if(v==null||v==='')return null;if(typeof v==='number'&&w.XLSX){const x=w.XLSX.SSF.parse_date_code(v);if(x)return `${x.y}-${String(x.m).padStart(2,'0')}-${String(x.d).padStart(2,'0')}`}if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);const dt=new Date(v);return isNaN(dt)?null:dt.toISOString().slice(0,10)}
+  async function rebuildIssues(){
+    if(location.protocol==='file:'||!w.XLSX)return false;
+    try{const u=new URL('Issues.xlsx',location.href);u.searchParams.set('_v143',Date.now());const res=await fetch(u.href,{cache:'no-store',headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}});if(!res.ok)throw new Error('Issues.xlsx '+res.status);const wb=w.XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:false,cellStyles:true});const ws=wb.Sheets?.['All Issues'];if(!ws)return false;const rows=w.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});const map=new Map();
+      for(let r=10;r<rows.length;r++){const n=r+1,code=canon(directCell(ws,'B',n)||rows[r]?.[1]);if(!code)continue;const status=normalizeStatus(directCell(ws,'T',n)||rows[r]?.[19]);const issue={project_code:code,project_name:directCell(ws,'C',n)||clean(rows[r]?.[2]),project_manager:directCell(ws,'D',n)||clean(rows[r]?.[3]),issue_owner:directCell(ws,'G',n)||clean(rows[r]?.[6]),responsible_entity:directCell(ws,'H',n)||clean(rows[r]?.[7]),issue_type:directCell(ws,'I',n)||clean(rows[r]?.[8]),date_issued:toISO(rows[r]?.[9]),main_issue:directCell(ws,'K',n)||clean(rows[r]?.[10]),impact:directCell(ws,'L',n)||clean(rows[r]?.[11]),action_taken:directCell(ws,'M',n)||clean(rows[r]?.[12]),action_required:directCell(ws,'N',n)||clean(rows[r]?.[13]),priority_sec:directCell(ws,'O',n)||clean(rows[r]?.[14]),priority_alfanar:directCell(ws,'P',n)||clean(rows[r]?.[15]),action_by:directCell(ws,'Q',n)||clean(rows[r]?.[16]),planned_target:toISO(rows[r]?.[17]),forecast_target:toISO(rows[r]?.[18]),issue_status:status||'Open',remarks:directCell(ws,'V',n)||clean(rows[r]?.[21])};if(!map.has(code))map.set(code,[]);map.get(code).push(issue);}
+      projectsArr().forEach(p=>{p.issues=map.get(canon(p.code))||[];p.high_issues=p.issues.filter(i=>/^(A|B|High|Extremely High|Critical)$/i.test(clean(i.priority_alfanar))&&normalizeStatus(i.issue_status)!=='Closed').length});
+      w.__v143IssuesWorkbook=wb;try{w.__v141RenderIssues?.(typeof w.filterProjects==='function'?w.filterProjects():projectsArr(),!!byId('projectFilter')?.value)}catch(e){}return true;
+    }catch(e){console.warn('v143 issue source refresh',e);return false}
+  }
+  function performanceCard(){return [...d.querySelectorAll('.card')].find(c=>clean(c.querySelector('.cardhead .title')?.textContent)==='Performance by Project')||byId('projectSummaryList')?.closest('.card')}
+  function ensurePerfFilter(){
+    const card=performanceCard(),head=card?.querySelector('.cardhead');if(!card||!head)return;
+    let wrap=byId('v142PerfFilterWrap');
+    if(!wrap){try{w.__v142Finalize?.()}catch(e){} wrap=byId('v142PerfFilterWrap');}
+    if(!wrap)return;
+    const badge=head.querySelector('.badge');
+    if(wrap.parentElement!==head){badge?head.insertBefore(wrap,badge):head.appendChild(wrap);}
+    // Keep the label/dropdown visually inside Performance by Project after any legacy re-render.
+    const lab=wrap.querySelector('label');if(lab)lab.textContent='Negative Variance Gap';
+    const sel=wrap.querySelector('select');if(sel&&sel.options.length>=4){sel.options[0].text='All Negative Gaps';sel.options[1].text='0% to -5%';sel.options[2].text='-5% to -15%';sel.options[3].text='Below -15%';}
+    wrap.style.marginLeft='auto';wrap.style.display='flex';
+  }
+  function refreshAll(){const wb=w.__v139PlanningWorkbook;if(wb)rebuildRemarks(wb);ensurePerfFilter();}
+  d.addEventListener('change',e=>{if(e.target?.matches?.('#projectFilter,#typeFilter,#statusFilter,#regionFilter'))setTimeout(refreshAll,60)},true);
+  const perf=byId('projectSummaryList');if(perf&&w.MutationObserver){let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ensurePerfFilter,30)}).observe(perf.closest('.card')||perf,{childList:true,subtree:true})}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{setTimeout(refreshAll,500);setTimeout(rebuildIssues,1800)},{once:true});else{setTimeout(refreshAll,300);setTimeout(rebuildIssues,1600)}
+  w.addEventListener('load',()=>{setTimeout(refreshAll,1500);setTimeout(refreshAll,3000);setTimeout(rebuildIssues,2600)},{once:true});
+  w.__v143RefreshSources=()=>{refreshAll();return rebuildIssues()};
+})();
+</script>
+
+<!-- v144: negative variance filter synchronizes Project and Project Type performance -->
+
+<style id="v145-variance-bootstrap-style">
+/* v145 — variance selector is part of the Performance by Project header from first paint. */
+#summarySection .cardhead:has(#v142PerfFilterWrap){align-items:center;flex-wrap:wrap}
+#summarySection #v142PerfFilterWrap{display:flex!important;visibility:visible!important;opacity:1!important}
+</style>
+<script id="v145-variance-bootstrap-script">
+(function(){
+  const d=document,w=window;if(w.__v145VarianceBootstrap)return;w.__v145VarianceBootstrap=true;
+  const clean=v=>String(v==null?'':v).trim();
+  function projectCard(){return [...d.querySelectorAll('#summarySection .card')].find(c=>clean(c.querySelector('.cardhead .title')?.textContent)==='Performance by Project')||d.getElementById('projectSummaryList')?.closest('.card')}
+  function build(){const wrap=d.createElement('div');wrap.id='v142PerfFilterWrap';wrap.className='v142-perf-filter';wrap.innerHTML='<label for="v142PerfVariance">Negative Variance Gap</label><select id="v142PerfVariance"><option value="">All Negative Gaps</option><option value="lt5">0% to -5%</option><option value="5to15">-5% to -15%</option><option value="gt15">Below -15%</option></select>';return wrap}
+  function ensure(){
+    const card=projectCard(),head=card?.querySelector('.cardhead');if(!card||!head)return false;
+    let wrap=d.getElementById('v142PerfFilterWrap');
+    if(!wrap){wrap=build();const badge=head.querySelector('.badge');badge?head.insertBefore(wrap,badge):head.appendChild(wrap)}
+    else if(wrap.parentElement!==head){const badge=head.querySelector('.badge');badge?head.insertBefore(wrap,badge):head.appendChild(wrap)}
+    const sel=wrap.querySelector('#v142PerfVariance');
+    if(sel&&!sel.dataset.v145GlobalBound){sel.dataset.v145GlobalBound='1';sel.addEventListener('change',e=>{if(typeof w.__v142SetPerfVariance==='function')w.__v142SetPerfVariance(e.target.value);else setTimeout(()=>w.__v142Finalize?.(),0)})}
+    return true;
+  }
+  function burst(){[0,30,90,180,350,700,1200,2200,4000].forEach(t=>setTimeout(()=>{ensure();w.__v142Finalize?.()},t))}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',burst,{once:true});else burst();
+  w.addEventListener('load',burst,{once:true});
+  const host=d.getElementById('summarySection');if(host&&w.MutationObserver){let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ensure,5)}).observe(host,{childList:true,subtree:true})}
+  // Legacy renderers can replace the whole summarySection; observe the page briefly and restore the control immediately.
+  if(w.MutationObserver){let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(ensure,8)}).observe(d.body,{childList:true,subtree:true})}
+})();
+</script>
+
+
+
+<!-- v146: first-change variance controller; works before/after any legacy re-render -->
+<script id="v146-variance-first-change-fix">
+(function(){
+  const d=document,w=window;
+  if(w.__v146VarianceFirstChangeFix)return;
+  w.__v146VarianceFirstChangeFix=true;
+  let seq=0;
+
+  function commit(value){
+    const my=++seq;
+    const v=value||'';
+    const run=()=>{
+      if(my!==seq)return;
+      const sel=d.getElementById('v142PerfVariance');
+      if(sel&&sel.value!==v)sel.value=v;
+      if(typeof w.__v142SetPerfVariance==='function'){
+        try{w.__v142SetPerfVariance(v)}catch(err){console.warn('v146 variance apply',err)}
+        return true;
+      }
+      return false;
+    };
+    // The first dropdown can appear before the final controller is ready. Retry through all startup renders.
+    [0,10,30,70,140,260,500,900,1500,2400,3600].forEach(t=>setTimeout(run,t));
+  }
+
+  // Delegated capture handler: independent of which renderer created/replaced the select.
+  d.addEventListener('change',function(e){
+    const el=e.target;
+    if(!el||el.id!=='v142PerfVariance')return;
+    const v=el.value||'';
+    // Do not depend on target-level listeners from any previous version.
+    e.stopImmediatePropagation();
+    commit(v);
+  },true);
+
+  // Keyboard selection in some browsers can emit input before change; keep state responsive.
+  d.addEventListener('input',function(e){
+    const el=e.target;
+    if(!el||el.id!=='v142PerfVariance')return;
+    commit(el.value||'');
+  },true);
+})();
+</script>
+
+
+
+<!-- v147: code-only project labels + consolidated cash presentation on portfolio and project levels -->
+<style id="v147-code-cash-consolidation-style">
+/* One commercial story: cash lives in the top Net Cash KPI, so the lower cash-flow card is removed on all levels. */
+#costSection > .grid2:first-child{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+#costSection > .grid2:first-child > .card:nth-child(2){
+  display:none!important;
+}
+#costSection > .grid2:first-child > .card:first-child{
+  width:100%!important;
+  max-width:none!important;
+  grid-column:1/-1!important;
+}
+/* Keep the existing contract/budget design, but allow it to use the new full width naturally. */
+#costSection > .grid2:first-child > .card:first-child #contractBudgetMetrics{width:100%!important}
+
+/* Project list labels: code is the visible identifier; full project name stays in hover tooltip. */
+#projectSummaryList .perf-name-v32,
+#projectSummaryList .v34-perf-name,
+#projectSummaryList .v35-perf-name strong{
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+</style>
+<script id="v147-code-cash-consolidation-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v147CodeCashConsolidation)return;
+  w.__v147CodeCashConsolidation=true;
+  const clean=v=>String(v==null?'':v).trim();
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money=v=>{const n=num(v),a=Math.abs(n),sg=n<0?'-':'';if(a>=1e9)return `SAR ${sg}${(a/1e9).toFixed(1)}B`;if(a>=1e6)return `SAR ${sg}${(a/1e6).toFixed(1)}M`;if(a>=1e3)return `SAR ${sg}${(a/1e3).toFixed(1)}K`;return `SAR ${sg}${a.toFixed(0)}`};
+  const canonical=v=>clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+  function allProjects(){
+    const pools=[w.projects,w.portfolio,w.allProjects,w.state?.projects];
+    for(const p of pools)if(Array.isArray(p)&&p.length)return p;
+    return [];
+  }
+  function currentRows(){
+    const all=allProjects(),code=canonical(d.getElementById('projectFilter')?.value);
+    // Project level is authoritative: never allow a lagging portfolio renderer to leak aggregate cash into the selected project card.
+    if(code){const p=all.find(x=>canonical(x.code||x.project_code)===code);return p?[p]:[]}
+    try{if(typeof w.filterProjects==='function'){const a=w.filterProjects();if(Array.isArray(a))return a}}catch(e){}
+    const type=clean(d.getElementById('typeFilter')?.value),status=clean(d.getElementById('statusFilter')?.value);
+    return all.filter(p=>(!type||clean(p.project_type)===type)&&(!status||clean(p.status)===status));
+  }
+  function projectMap(){
+    const m=new Map();
+    allProjects().forEach(p=>{const code=canonical(p.code||p.project_code);if(code)m.set(code,p)});
+    return m;
+  }
+  function codeOnlyLabels(){
+    const map=projectMap();
+    // Performance by Project — code only in the row, full name in tooltip.
+    d.querySelectorAll('#projectSummaryList [data-v142-project]').forEach(row=>{
+      const code=canonical(row.getAttribute('data-v142-project'));
+      const p=map.get(code),name=clean(p?.name||p?.project_name);
+      const label=row.querySelector('.perf-name-v32,.v34-perf-name,.v35-perf-name strong');
+      if(label){label.textContent=code||clean(label.textContent).split(/[·•]/)[0].trim();label.title=name?`${code} — ${name}`:code;}
+      row.title=name?`${code} — ${name}`:code;
+    });
+    // Project Register and Issue Log — keep project code visible; project name is hover-only.
+    d.querySelectorAll('#projectRegisterBody .projectlink,#riskTableBody .projectlink').forEach(btn=>{
+      const raw=clean(btn.textContent),code=canonical((raw.match(/[A-Z]{1,5}[-_/ ]?\d{2,4}/i)||[])[0]||raw.split(/\s|\n/)[0]);
+      if(!code)return;
+      const p=map.get(code),existing=raw.replace(code,'').trim(),name=clean(p?.name||p?.project_name||existing);
+      btn.textContent=code;
+      btn.title=name?`${code} — ${name}`:code;
+    });
+  }
+  function hideLowerCash(){
+    const grid=d.querySelector('#costSection > .grid2:first-child');
+    if(!grid)return;
+    const cards=[...grid.children].filter(x=>x.classList?.contains('card'));
+    const cash=cards.find(c=>/Portfolio Cash Flow/i.test(clean(c.querySelector('.cardhead .title')?.textContent)));
+    const contract=cards.find(c=>/Contract & Budget Position/i.test(clean(c.querySelector('.cardhead .title')?.textContent)))||cards[0];
+    if(cash)cash.style.setProperty('display','none','important');
+    if(contract){contract.style.setProperty('width','100%','important');contract.style.setProperty('grid-column','1 / -1','important');}
+    grid.style.setProperty('grid-template-columns','minmax(0,1fr)','important');
+  }
+  function topCash(){
+    const host=d.getElementById('topKpis');if(!host)return;
+    const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));
+    if(!card)return;
+    const rows=currentRows();
+    const cin=rows.reduce((a,p)=>a+num(p.cash_inflow),0),cout=rows.reduce((a,p)=>a+num(p.cash_outflow),0),net=rows.reduce((a,p)=>a+num(p.net_cash),0);
+    let mini=card.querySelector('.v141-cash-mini');
+    if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}
+    mini.innerHTML=`<div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cin))}">${esc(money(cin).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cout))}">${esc(money(cout).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${net<0?'neg':'pos'}" title="${esc(money(net))}">${esc(money(net).replace('SAR ',''))}</div></div>`;
+  }
+  let busy=false,timer=0;
+  function enforce(){if(busy)return;busy=true;try{hideLowerCash();topCash();codeOnlyLabels()}finally{busy=false}}
+  function queue(ms=20){clearTimeout(timer);timer=setTimeout(enforce,ms)}
+  // Keep the final approved state after every legacy renderer/filter transition.
+  d.addEventListener('change',e=>{if(e.target?.matches?.('#projectFilter,#typeFilter,#statusFilter,#regionFilter,#v142PerfVariance,#v141RegType,#v141RegStatus,#v141RegVariance,#v141RegCash,#v141RegManager,#v141RegCity,#v141RegTcc,#v141RegIssues,#riskProjectFilter,#riskTypeFilter,#v141IssueVendor,#v141IssueOwner,#v141IssueStatus,#riskTradeFilter,#riskPriorityFilter,#v141IssueAging'))queue(15)},true);
+  d.addEventListener('click',e=>{if(e.target?.closest?.('#resetFilters,.reset,.v69-unit-tab,#v88bCriticalCard,#v141RegReset,#resetRiskFilters')){[20,100,300].forEach(queue)}},true);
+  const watchIds=['topKpis','summarySection','projectRegisterBody','riskTableBody','costSection'];
+  watchIds.forEach(id=>{const el=d.getElementById(id);if(el&&w.MutationObserver)new MutationObserver(()=>queue(10)).observe(el,{childList:true,subtree:true})});
+  const prev=w.renderAll;if(typeof prev==='function'&&!w.__v147RenderWrapped){w.__v147RenderWrapped=true;w.renderAll=function(){const r=prev.apply(this,arguments);[0,40,160,500].forEach(queue);return r};try{renderAll=w.renderAll}catch(e){}}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{[0,120,500,1200].forEach(queue)},{once:true});else [0,120,500].forEach(queue);
+  w.addEventListener('load',()=>{[50,300,900,1800].forEach(queue)},{once:true});
+  w.__v147Enforce=enforce;
+})();
+</script>
+
+
+
+<!-- v148: persistent Cash In / Cash Out after manual Excel upload and on project level -->
+<style id="v148-cash-persistence-style">
+/* The lower cash-flow card is intentionally consolidated into the top Net Cash KPI. */
+#costSection .v148-hidden-cash-flow{display:none!important}
+#costSection .v148-full-contract{width:100%!important;max-width:none!important;grid-column:1/-1!important}
+#costSection .v148-single-commercial-grid{grid-template-columns:minmax(0,1fr)!important}
+</style>
+<script id="v148-cash-persistence-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v148CashPersistence)return;
+  w.__v148CashPersistence=true;
+  const clean=v=>String(v==null?'':v).trim();
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money=v=>{const n=num(v),a=Math.abs(n),sg=n<0?'-':'';if(a>=1e9)return `SAR ${sg}${(a/1e9).toFixed(1)}B`;if(a>=1e6)return `SAR ${sg}${(a/1e6).toFixed(1)}M`;if(a>=1e3)return `SAR ${sg}${(a/1e3).toFixed(1)}K`;return `SAR ${sg}${a.toFixed(0)}`};
+  const canonical=v=>clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+
+  function sourceProjects(){
+    // IMPORTANT: `projects` is the live master array used by the Excel parsers.
+    // It is a global lexical binding, not necessarily exposed as window.projects.
+    try{if(typeof projects!=='undefined' && Array.isArray(projects) && projects.length)return projects}catch(e){}
+    const pools=[w.projects,w.portfolio,w.allProjects,w.state&&w.state.projects];
+    for(const p of pools)if(Array.isArray(p)&&p.length)return p;
+    return [];
+  }
+  function selectedCode(){return canonical(d.getElementById('projectFilter')?.value||'')}
+  function filteredRows(){
+    const all=sourceProjects(),code=selectedCode();
+    if(code){const p=all.find(x=>canonical(x.code||x.project_code)===code);return p?[p]:[]}
+    const type=clean(d.getElementById('typeFilter')?.value||'');
+    const status=clean(d.getElementById('statusFilter')?.value||'');
+    return all.filter(p=>(!type||clean(p.project_type)===type)&&(!status||clean(p.status)===status));
+  }
+  function ensureTopCash(){
+    const host=d.getElementById('topKpis');if(!host)return;
+    const card=[...host.querySelectorAll('.kpi')].find(k=>/^Net Cash$/i.test(clean(k.querySelector('label')?.textContent)));
+    if(!card)return;
+    const rows=filteredRows();
+    const cin=rows.reduce((a,p)=>a+num(p.cash_inflow),0);
+    const cout=rows.reduce((a,p)=>a+num(p.cash_outflow),0);
+    // Derive net from cash in/out whenever available so project-level values stay consistent after manual costing upload.
+    const derived=cin-cout;
+    const stored=rows.reduce((a,p)=>a+num(p.net_cash),0);
+    const net=(cin!==0||cout!==0)?derived:stored;
+    let mini=card.querySelector('.v141-cash-mini');
+    if(!mini){mini=d.createElement('div');mini.className='v141-cash-mini';card.appendChild(mini)}
+    mini.innerHTML=`<div class="v141-cash-cell in"><div class="k">Cash In</div><div class="v" title="${esc(money(cin))}">${esc(money(cin).replace('SAR ',''))}</div></div><div class="v141-cash-cell out"><div class="k">Cash Out</div><div class="v" title="${esc(money(cout))}">${esc(money(cout).replace('SAR ',''))}</div></div><div class="v141-cash-cell net"><div class="k">Net</div><div class="v ${net<0?'neg':'pos'}" title="${esc(money(net))}">${esc(money(net).replace('SAR ',''))}</div></div>`;
+  }
+  function consolidateCommercial(){
+    const section=d.getElementById('costSection');if(!section)return;
+    // Find by title rather than nth-child because legacy/project renderers can rebuild a different grid structure.
+    const cards=[...section.querySelectorAll('.card')];
+    let contract=null;
+    cards.forEach(card=>{
+      const title=clean(card.querySelector('.cardhead .title')?.textContent);
+      if(/Contract\s*&\s*Budget Position/i.test(title))contract=card;
+      if(/(?:Portfolio|Project)?\s*Cash Flow/i.test(title))card.classList.add('v148-hidden-cash-flow');
+    });
+    if(contract){
+      contract.classList.add('v148-full-contract');
+      const parent=contract.parentElement;
+      if(parent){parent.classList.add('v148-single-commercial-grid');parent.style.setProperty('grid-template-columns','minmax(0,1fr)','important')}
+    }
+  }
+  function enforce(){ensureTopCash();consolidateCommercial();try{if(typeof w.__v147Enforce==='function')w.__v147Enforce()}catch(e){}ensureTopCash();consolidateCommercial()}
+  let timers=[];
+  function queue(){
+    timers.forEach(clearTimeout);timers=[];
+    [0,30,120,350,800,1600,3000].forEach(ms=>timers.push(setTimeout(enforce,ms)));
+  }
+
+  // Every filter/project-level transition must preserve the same commercial presentation.
+  d.addEventListener('change',e=>{
+    if(e.target?.matches?.('#projectFilter,#typeFilter,#statusFilter,#regionFilter,#v77UploadInput,#v142PerfVariance,#v141RegType,#v141RegStatus,#v141RegVariance,#v141RegCash'))queue();
+  },true);
+  d.addEventListener('click',e=>{
+    if(e.target?.closest?.('#resetFilters,.reset,.v69-unit-tab,#v77UploadBtn,#v88bCriticalCard'))queue();
+  },true);
+
+  // Manual Excel upload calls this API after the Cost/Planning/Issues parsers finish.
+  function wrapExcelRerender(){
+    const api=w.__alfanarExcelApi;if(!api||api.__v148Wrapped)return;
+    const prev=api.rerender;
+    if(typeof prev==='function'){
+      api.rerender=function(){const r=prev.apply(this,arguments);queue();return r};
+      api.__v148Wrapped=true;
+    }
+  }
+  wrapExcelRerender();
+
+  // Sync badge changes to "Manual Excel" only after parsing/rerender has completed.
+  function watchSync(){
+    const badge=d.getElementById('v54SyncBadge');
+    if(badge&&w.MutationObserver&&!badge.__v148Watch){badge.__v148Watch=true;new MutationObserver(()=>queue()).observe(badge,{childList:true,subtree:true,characterData:true,attributes:true})}
+  }
+  ['topKpis','costSection'].forEach(id=>{const el=d.getElementById(id);if(el&&w.MutationObserver)new MutationObserver(()=>queue()).observe(el,{childList:true,subtree:true})});
+
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{wrapExcelRerender();watchSync();queue()},{once:true});
+  else{wrapExcelRerender();watchSync();queue()}
+  w.addEventListener('load',()=>{wrapExcelRerender();watchSync();queue()},{once:true});
+  w.__v148Enforce=enforce;
+})();
+</script>
+
+
+<!-- v149: first-paint cash + comfortable KPI card height -->
+<style id="v149-kpi-first-paint-height">
+#topKpis{align-items:stretch!important}
+#topKpis .kpi{
+  min-height:218px!important;
+  height:auto!important;
+  padding:16px 16px 18px!important;
+  overflow:hidden!important;
+}
+#topKpis .kpi .sub{
+  margin-top:7px!important;
+  min-height:30px!important;
+  line-height:1.35!important;
+}
+#topKpis .kpi .v88-progress-mini{margin-top:8px!important}
+#topKpis .kpi .v88-var-chip,#topKpis .kpi .v88-kpi-note,#topKpis .kpi .v88-link-note{margin-top:8px!important}
+#topKpis .kpi .v141-cash-mini{margin-top:10px!important}
+#topKpis .kpi .v88-status-row{margin-top:8px!important}
+#topKpis .kpi .v88-spi-wrap{margin-top:8px!important}
+#topKpis .kpi .v88-major{margin-top:7px!important}
+@media(max-width:1280px){#topKpis .kpi{min-height:205px!important}}
+@media(max-width:820px){#topKpis .kpi{min-height:0!important}}
+</style>
+
+<!-- v150: code-only performance labels + fixed KPI height + binary issue status -->
+<style id="v150-final-polish-style">
+/* Performance by Project: the visible identity is the project code only. */
+#projectSummaryList .perf-meta-v32{display:none!important}
+#projectSummaryList .perf-head-v32{grid-template-columns:minmax(0,1fr) auto!important}
+#projectSummaryList .perf-name-v32{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+
+/* Top KPI cards: one fixed, comfortable height on desktop so content never sits on the edge. */
+#topKpis{align-items:stretch!important;grid-auto-rows:240px!important}
+#topKpis .kpi{
+  height:240px!important;
+  min-height:240px!important;
+  max-height:240px!important;
+  padding:18px 16px 22px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+}
+#topKpis .kpi label{flex:0 0 auto}
+#topKpis .kpi .value{flex:0 0 auto}
+#topKpis .kpi .sub{flex:0 0 auto;margin-top:8px!important}
+#topKpis .kpi .v141-cash-mini{margin-top:auto!important;padding-top:8px!important}
+@media(max-width:1280px){
+  #topKpis{grid-auto-rows:228px!important}
+  #topKpis .kpi{height:228px!important;min-height:228px!important;max-height:228px!important}
+}
+@media(max-width:820px){
+  #topKpis{grid-auto-rows:auto!important}
+  #topKpis .kpi{height:auto!important;min-height:0!important;max-height:none!important}
+}
+</style>
+<script id="v150-final-polish-script">
+(function(){
+  const d=document,w=window;
+  if(w.__v150FinalPolish)return;
+  w.__v150FinalPolish=true;
+  const clean=v=>String(v==null?'':v).trim();
+  const canon=v=>clean(v).toUpperCase().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'');
+  function masterProjects(){
+    try{if(typeof projects!=='undefined'&&Array.isArray(projects))return projects}catch(e){}
+    const pools=[w.projects,w.portfolio,w.allProjects,w.state&&w.state.projects];
+    for(const a of pools)if(Array.isArray(a))return a;
+    return [];
+  }
+  function rawStatus(v){
+    const s=clean(v),x=s.toLowerCase();
+    if(/closed|resolved|complete|completed|done/.test(x))return 'Closed';
+    if(/open|active|pending|ongoing|in progress/.test(x))return 'Open';
+    return '';
+  }
+  function issueKey(i){
+    return canon(i?.project_code||i?._project?.code)+'|'+clean(i?.main_issue).toLowerCase().replace(/\s+/g,' ').slice(0,260);
+  }
+  // Capture the embedded/original status before any manual/live parser can corrupt a text cell with a date format.
+  const statusSnapshot=new Map();
+  masterProjects().forEach(p=>(p.issues||[]).forEach(i=>{
+    const s=rawStatus(i.issue_status||i.status);
+    if(s)statusSnapshot.set(issueKey(i),s);
+  }));
+  w.__v150IssueStatus=function(i){
+    const direct=rawStatus(i?.issue_status||i?.status||i?.issueStatus);
+    if(direct)return direct;
+    const snap=statusSnapshot.get(issueKey(i));
+    if(snap)return snap;
+    // The dashboard has only two operational states. Unknown/unreadable values are treated as active.
+    return 'Open';
+  };
+  function normalizeIssues(){
+    masterProjects().forEach(p=>(p.issues||[]).forEach(i=>{i.issue_status=w.__v150IssueStatus(i)}));
+  }
+  function enforcePerformance(){
+    const map=new Map(masterProjects().map(p=>[canon(p.code||p.project_code),p]));
+    d.querySelectorAll('#projectSummaryList [data-v142-project]').forEach(row=>{
+      const code=canon(row.getAttribute('data-v142-project'));
+      const p=map.get(code);
+      const label=row.querySelector('.perf-name-v32,.v34-perf-name,.v35-perf-name strong');
+      if(label){label.textContent=code;label.title=p?.name?`${code} — ${p.name}`:code}
+      const meta=row.querySelector('.perf-meta-v32');if(meta)meta.remove();
+      row.title=p?.name?`${code} — ${p.name}`:code;
+    });
+  }
+  function rerenderIssues(){
+    normalizeIssues();
+    try{
+      if(typeof w.__v141RenderIssues==='function'){
+        let data;
+        try{data=typeof w.filterProjects==='function'?w.filterProjects():masterProjects()}catch(e){data=masterProjects()}
+        w.__v141RenderIssues(data,!!d.getElementById('projectFilter')?.value);
+      }
+    }catch(e){console.warn('v150 issue render',e)}
+  }
+  let busy=false;
+  function enforce(){
+    if(busy)return;busy=true;
+    try{normalizeIssues();enforcePerformance()}finally{busy=false}
+  }
+  d.addEventListener('change',e=>{
+    if(e.target?.matches?.('#projectFilter,#typeFilter,#statusFilter,#regionFilter,#v142PerfVariance,#riskProjectFilter,#v141IssueStatus,#v141IssueVendor,#v141IssueOwner,#riskTradeFilter,#riskPriorityFilter,#v141IssueAging')){
+      setTimeout(enforce,0);setTimeout(enforce,80);
+    }
+  },true);
+  const perf=d.getElementById('projectSummaryList');
+  if(perf&&w.MutationObserver)new MutationObserver(()=>{if(!busy)queueMicrotask(enforcePerformance)}).observe(perf,{childList:true,subtree:true});
+  const risk=d.getElementById('riskTableBody');
+  if(risk&&w.MutationObserver)new MutationObserver(()=>{if(!busy){normalizeIssues();}}).observe(risk,{childList:true,subtree:true});
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>{enforce();setTimeout(rerenderIssues,100);setTimeout(enforce,250)},{once:true});
+  else{enforce();setTimeout(rerenderIssues,100)}
+  w.addEventListener('load',()=>{[100,500,1400].forEach(t=>setTimeout(()=>{rerenderIssues();enforce()},t))},{once:true});
+})();
+</script>
+
+
+
+<!-- v151: issue status summary + executive issue analytics -->
+<style id="v151-issue-analytics-style">
+#riskTopMetrics{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;margin-top:4px!important}
+#riskTopMetrics .metric{min-height:112px!important;padding:15px 16px!important}
+#riskTopMetrics .v151-total{--tone:#0f6fbd}
+#v151IssueAnalytics{margin:14px 0 16px;border-top:1px solid #dce8f1;padding-top:14px}
+.v151-analytics-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.v151-analytics-title{font-size:14px;font-weight:950;color:#24405b}.v151-analytics-sub{font-size:10px;color:#6d8092;font-weight:700;margin-top:3px}
+.v151-analytics-badge{padding:6px 9px;border-radius:999px;background:#eaf4fb;color:#0f6fbd;font-size:10px;font-weight:950;white-space:nowrap}
+.v151-analytics-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.v151-analytics-card{border:1px solid #d7e5ef;border-radius:16px;background:linear-gradient(180deg,#fff,#f9fbfe);padding:13px;min-width:0;box-shadow:0 6px 16px rgba(20,52,86,.035)}
+.v151-analytics-card.wide2{grid-column:span 2}.v151-analytics-card.full{grid-column:1/-1}
+.v151-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:11px}.v151-card-title{font-size:11px;text-transform:uppercase;letter-spacing:.75px;font-weight:950;color:#536a80}.v151-card-total{font-size:10px;font-weight:900;color:#0f6fbd;background:#edf5fb;border-radius:999px;padding:4px 7px}
+.v151-donut-layout{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center;min-height:130px}
+.v151-donut{width:106px;height:106px;border-radius:50%;position:relative;margin:auto}.v151-donut:after{content:"";position:absolute;inset:19px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px #e2ebf2}
+.v151-donut-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;flex-direction:column;pointer-events:none}.v151-donut-center b{font-size:20px;color:#173454}.v151-donut-center span{font-size:8px;text-transform:uppercase;letter-spacing:.6px;color:#718497;font-weight:900}
+.v151-legend{display:grid;gap:7px}.v151-legend-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:10px;color:#53687d;font-weight:800}.v151-dot{width:9px;height:9px;border-radius:50%}.v151-legend-row strong{color:#193b5c;font-size:10px}.v151-legend-row small{color:#788a9b;font-size:9px;margin-left:4px}
+.v151-bar-list{display:grid;gap:8px;max-height:250px;overflow:auto;padding-right:3px}.v151-bar-row{display:grid;grid-template-columns:minmax(105px,1.05fr) minmax(130px,2fr) 38px;gap:8px;align-items:center}.v151-bar-label{font-size:10px;line-height:1.25;color:#41596f;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v151-bar-track{height:9px;background:#e5edf4;border-radius:999px;overflow:hidden}.v151-bar-fill{height:100%;border-radius:999px;background:#176fae;min-width:2px}.v151-bar-value{text-align:right;font-size:10px;color:#1f3f5d;font-weight:950}
+.v151-priority-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;align-items:end;min-height:135px}.v151-priority-item{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:135px}.v151-priority-value{font-size:11px;color:#24405b;font-weight:950}.v151-priority-bar{width:58%;min-height:4px;border-radius:7px 7px 3px 3px;background:#176fae}.v151-priority-label{font-size:10px;font-weight:950;color:#596f83}
+.v151-empty{padding:26px 10px;text-align:center;color:#7b8b99;font-size:11px;font-weight:750}
+@media(max-width:1150px){.v151-analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v151-analytics-card.wide2{grid-column:span 1}.v151-analytics-card.full{grid-column:1/-1}}
+@media(max-width:760px){#riskTopMetrics,.v151-analytics-grid{grid-template-columns:1fr!important}.v151-analytics-card.wide2,.v151-analytics-card.full{grid-column:auto}.v151-donut-layout{grid-template-columns:1fr}.v151-bar-row{grid-template-columns:minmax(90px,1fr) minmax(100px,1.7fr) 34px}}
+</style>
+<script id="v151-issue-analytics-script">
+(function(){
+  const d=document,w=window;if(w.__v151IssueAnalytics)return;w.__v151IssueAnalytics=true;
+  const clean=v=>String(v==null?'':v).trim();
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const statusOf=i=>{try{if(typeof w.__v150IssueStatus==='function')return w.__v150IssueStatus(i)}catch(e){}return /closed|resolved|complete|done/i.test(clean(i?.issue_status))?'Closed':'Open'};
+  const titleCase=s=>clean(s).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const criticality=i=>{const x=clean(i?.impact).toLowerCase();if(/extremely\s*high|critical/.test(x))return'Extremely High';if(/^high$/.test(x)||x==='high')return'High';if(/medium/.test(x))return'Medium';if(/low/.test(x))return'Low';return x?'Other':''};
+  const ownerCat=i=>{const x=clean(i?.issue_owner).toLowerCase();if(/vendor|subcontract/.test(x))return'Vendor';if(/client|sec/.test(x))return'Client';if(/alfanar/.test(x))return'Alfanar';return x?'Other':''};
+  const secPriority=i=>{const x=clean(i?.priority_sec).toUpperCase();return ['A','B','C'].includes(x)?x:(x?'Other':'')};
+  function grouped(rows,getter){const map=new Map();rows.forEach(r=>{const raw=getter(r);if(!raw)return;const label=clean(raw);if(!label)return;const k=label.toLowerCase().replace(/\s+/g,' ');const cur=map.get(k);if(cur)cur.count++;else map.set(k,{label,count:1})});return [...map.values()].sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label))}
+  function donut(title,entries,total,colors){if(!entries.length)return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;let pos=0;const grad=[];entries.forEach((e,idx)=>{const pct=total?e.count/total*100:0;const next=pos+pct;grad.push(`${colors[idx%colors.length]} ${pos.toFixed(2)}% ${next.toFixed(2)}%`);pos=next});const legends=entries.map((e,idx)=>{const pct=total?e.count/total*100:0;return `<div class="v151-legend-row"><span class="v151-dot" style="background:${colors[idx%colors.length]}"></span><span title="${esc(e.label)}">${esc(e.label)}</span><strong>${e.count}<small>${pct.toFixed(0)}%</small></strong></div>`}).join('');return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div><div class="v151-card-total">${total}</div></div><div class="v151-donut-layout"><div class="v151-donut" style="background:conic-gradient(${grad.join(',')})"><div class="v151-donut-center"><b>${total}</b><span>Issues</span></div></div><div class="v151-legend">${legends}</div></div></div>`}
+  function bars(title,entries,cls=''){if(!entries.length)return `<div class="v151-analytics-card ${cls}"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div></div><div class="v151-empty">No data in current filter</div></div>`;const max=Math.max(...entries.map(e=>e.count),1);return `<div class="v151-analytics-card ${cls}"><div class="v151-card-head"><div class="v151-card-title">${esc(title)}</div><div class="v151-card-total">${entries.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-bar-list">${entries.map(e=>`<div class="v151-bar-row"><div class="v151-bar-label" title="${esc(e.label)}">${esc(e.label)}</div><div class="v151-bar-track"><div class="v151-bar-fill" style="width:${Math.max(2,e.count/max*100).toFixed(1)}%"></div></div><div class="v151-bar-value">${e.count}</div></div>`).join('')}</div></div>`}
+  function priorityBars(entries){const map=new Map(entries.map(e=>[e.label,e.count]));const vals=['A','B','C'].map(k=>({label:k,count:map.get(k)||0}));const max=Math.max(...vals.map(x=>x.count),1);return `<div class="v151-analytics-card"><div class="v151-card-head"><div class="v151-card-title">SEC Priority</div><div class="v151-card-total">${vals.reduce((a,e)=>a+e.count,0)}</div></div><div class="v151-priority-grid">${vals.map(v=>`<div class="v151-priority-item"><div class="v151-priority-value">${v.count}</div><div class="v151-priority-bar" style="height:${Math.max(4,v.count/max*92).toFixed(1)}px"></div><div class="v151-priority-label">${v.label}</div></div>`).join('')}</div></div>`}
+  function ensureHost(){const metrics=d.getElementById('riskTopMetrics');if(!metrics)return null;let host=d.getElementById('v151IssueAnalytics');if(!host){host=d.createElement('div');host.id='v151IssueAnalytics';metrics.insertAdjacentElement('afterend',host)}return host}
+  w.__v151RenderIssueAnalytics=function(rows){rows=Array.isArray(rows)?rows:[];const host=ensureHost();if(!host)return;const total=rows.length;
+    const status=grouped(rows,i=>statusOf(i));
+    const crit=grouped(rows,criticality);
+    const owner=grouped(rows,ownerCat);
+    const sec=grouped(rows,secPriority);
+    const alfanar=grouped(rows.filter(i=>ownerCat(i)==='Alfanar'),i=>clean(i.responsible_entity));
+    const vendors=grouped(rows.filter(i=>ownerCat(i)==='Vendor'),i=>clean(i.responsible_entity));
+    const types=grouped(rows,i=>{const x=clean(i.issue_type);return x?titleCase(x):''});
+    host.innerHTML=`<div class="v151-analytics-head"><div><div class="v151-analytics-title">Issue Analytics</div><div class="v151-analytics-sub">Live breakdown from the current Issues.xlsx scope and Issue Log filters.</div></div><div class="v151-analytics-badge">${total} Issues Analysed</div></div><div class="v151-analytics-grid">
+      ${donut('Issue Status',status,total,['#1f6f8b','#ed7430'])}
+      ${donut('Criticality',crit,total,['#e24a4a','#f1a30b','#f3dc00','#16a060','#8497a9'])}
+      ${donut('Issue Owner',owner,total,['#d94f4f','#4f96d1','#13a863','#8997a5'])}
+      ${bars('Alfanar Department Issues',alfanar.slice(0,14))}
+      ${priorityBars(sec)}
+      ${bars('Vendors / Issues No.',vendors.slice(0,24),'wide2')}
+      ${bars('Issue Types / Issues No.',types,'full')}
+    </div>`;
+  };
+  function setAllDefault(){const sel=d.getElementById('v141IssueStatus');if(sel&&sel.value!==''){sel.value='';sel.dispatchEvent(new Event('change',{bubbles:true}))}}
+  // Reset must always return to All Statuses, not Open-only.
+  d.addEventListener('click',e=>{if(e.target?.closest?.('#resetRiskFilters'))setTimeout(()=>{const s=d.getElementById('v141IssueStatus');if(s){s.value='';s.dispatchEvent(new Event('change',{bubbles:true}))}},0)},true);
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(setAllDefault,180),{once:true});else setTimeout(setAllDefault,180);
+  w.addEventListener('load',()=>setTimeout(setAllDefault,350),{once:true});
+})();
+</script>
+
+
+
+<!-- v152: clickable issue analytics + executive icon system -->
+<style id="v152-clickable-analytics-icons-style">
+/* Clickable analytics */
+#v151IssueAnalytics .v152-clickable-stat,
+#riskTopMetrics .v152-clickable-stat{cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease,background .14s ease}
+#v151IssueAnalytics .v152-clickable-stat:hover{transform:translateY(-1px);background:#f3f9fe;box-shadow:0 7px 17px rgba(18,70,112,.09)}
+#riskTopMetrics .v152-clickable-stat:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(18,70,112,.10)}
+#v151IssueAnalytics .v152-clickable-stat.v152-active-stat,#riskTopMetrics .v152-clickable-stat.v152-active-stat{outline:2px solid rgba(15,111,189,.28);outline-offset:1px;background:#eef7fd}
+.v152-analytics-filter-strip{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:0 0 11px;padding:9px 10px;border:1px solid #d9e7f1;border-radius:13px;background:#f8fbfe}
+.v152-filter-hint{font-size:9px;color:#6e8193;font-weight:850;margin-right:2px}.v152-filter-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #cfe0ec;border-radius:999px;background:#fff;color:#294a67;font-size:9px;font-weight:900;cursor:pointer}.v152-filter-chip:hover{background:#edf6fd}.v152-filter-chip b{color:#0f6fbd}.v152-filter-clear{margin-left:auto;border:0;background:#eaf4fb;color:#0f6fbd;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:950;cursor:pointer}.v152-filter-clear:hover{background:#dceefa}
+.v152-analytics-click-note{font-size:9px;color:#6d8092;font-weight:800;margin-top:3px}.v152-analytics-click-note strong{color:#0f6fbd}
+/* Executive icon system */
+.v152-title-with-icon{display:inline-flex!important;align-items:center;gap:7px}.v152-title-icon{width:22px;height:22px;border-radius:7px;background:#eaf4fb;color:#0f6fbd;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.v152-title-icon svg{width:13px;height:13px;display:block}
+.kpi label.v152-label-iconized,.metric label.v152-label-iconized{display:flex!important;align-items:center;gap:6px}.v152-label-icon{width:17px;height:17px;border-radius:6px;background:rgba(15,111,189,.09);color:var(--tone,#0f6fbd);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.v152-label-icon svg{width:10px;height:10px;display:block}
+#v151IssueAnalytics .v151-card-title.v152-title-with-icon .v152-title-icon{width:19px;height:19px;border-radius:6px}.v151-bar-row.v152-clickable-stat,.v151-legend-row.v152-clickable-stat,.v151-priority-item.v152-clickable-stat{border-radius:9px;padding:3px 4px;margin:-3px -4px}
+.v151-priority-item.v152-clickable-stat{padding:5px 3px;margin:0}
+@media(max-width:760px){.v152-filter-clear{margin-left:0}.v152-analytics-filter-strip{align-items:flex-start}}
+</style>
+
+<script id="v152-clickable-analytics-icons-script">
+(function(){
+  const d=document,w=window;if(w.__v152ClickableIssueAnalytics)return;w.__v152ClickableIssueAnalytics=true;
+  const clean=v=>String(v==null?'':v).trim();
+  const norm=v=>clean(v).toLowerCase().replace(/\s+/g,' ');
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const titleCase=s=>clean(s).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const statusOf=i=>{try{if(typeof w.__v150IssueStatus==='function')return w.__v150IssueStatus(i)}catch(e){}return /closed|resolved|complete|done/i.test(clean(i?.issue_status))?'Closed':'Open'};
+  const criticality=i=>{const x=norm(i?.impact);if(/extremely\s*high|critical/.test(x))return'Extremely High';if(x==='high')return'High';if(/medium/.test(x))return'Medium';if(/low/.test(x))return'Low';return x?'Other':''};
+  const ownerCat=i=>{const x=norm(i?.issue_owner);if(/vendor|subcontract/.test(x))return'Vendor';if(/client|sec/.test(x))return'Client';if(/alfanar/.test(x))return'Alfanar';return x?'Other':''};
+  const secPriority=i=>{const x=clean(i?.priority_sec).toUpperCase();return ['A','B','C'].includes(x)?x:(x?'Other':'')};
+  const dimLabels={status:'Status',criticality:'Criticality',owner:'Issue Owner',department:'Alfanar Department',secpriority:'SEC Priority',vendor:'Vendor',issuetype:'Issue Type'};
+  const filters={status:'',criticality:'',owner:'',department:'',secpriority:'',vendor:'',issuetype:''};
+  let sourceRows=[];
+  let applying=false;
+  function valueFor(i,dim){
+    if(dim==='status')return statusOf(i);
+    if(dim==='criticality')return criticality(i);
+    if(dim==='owner')return ownerCat(i);
+    if(dim==='secpriority')return secPriority(i);
+    if(dim==='department')return ownerCat(i)==='Alfanar'?clean(i?.responsible_entity):'';
+    if(dim==='vendor')return ownerCat(i)==='Vendor'?clean(i?.responsible_entity):'';
+    if(dim==='issuetype')return titleCase(clean(i?.issue_type));
+    return '';
+  }
+  function rowMatches(i){return Object.entries(filters).every(([dim,val])=>!val||norm(valueFor(i,dim))===norm(val))}
+  function filteredRows(){return sourceRows.filter(rowMatches)}
+  function clearAnalyticsFilters(){Object.keys(filters).forEach(k=>filters[k]='')}
+  function activeCount(){return Object.values(filters).filter(Boolean).length}
+  function iconSvg(name){
+    const paths={
+      chart:'<path d="M4 18V9m6 9V5m6 13v-7"/><path d="M2 20h20"/>',
+      alert:'<path d="M12 3 2.7 19h18.6L12 3Z"/><path d="M12 9v4m0 3h.01"/>',
+      check:'<path d="M20 6 9 17l-5-5"/>',
+      folder:'<path d="M3 6h6l2 2h10v10H3z"/>',
+      money:'<circle cx="12" cy="12" r="8"/><path d="M14.5 9.5c-.8-1-4.4-.9-4.4.8 0 2.3 5.2 1.2 5.2 3.8 0 2-4 2.4-5.7.7M12 6v12"/>',
+      calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+      user:'<circle cx="12" cy="8" r="3"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/>',
+      table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 9v11M15 9v11"/>',
+      filter:'<path d="M3 5h18l-7 8v5l-4 2v-7z"/>',
+      bolt:'<path d="m13 2-7 11h6l-1 9 7-12h-6z"/>',
+      briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3m-12 5h18"/>',
+      clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      list:'<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.chart}</svg>`;
+  }
+  function sectionIcon(text){const x=norm(text);if(/issue|risk|critical/.test(x))return'alert';if(/cash|contract|budget|commercial|cost/.test(x))return'money';if(/performance|progress|variance|spi/.test(x))return'chart';if(/project.*register|register/.test(x))return'table';if(/date|milestone|tcc|calendar|schedule/.test(x))return'calendar';if(/identity|profile|manager/.test(x))return'user';if(/project/.test(x))return'folder';if(/filter/.test(x))return'filter';return'chart'}
+  function decorateTitle(el){if(!el||el.querySelector(':scope > .v152-title-icon'))return;const text=clean(el.textContent);if(!text)return;el.classList.add('v152-title-with-icon');el.insertAdjacentHTML('afterbegin',`<span class="v152-title-icon">${iconSvg(sectionIcon(text))}</span>`)}
+  function decorateIcons(){
+    d.querySelectorAll('.cardhead .title,#riskTitle,#projectRegisterTitle,.v151-analytics-title,.v151-card-title').forEach(decorateTitle);
+    d.querySelectorAll('.kpi label,.metric label').forEach(label=>{if(label.querySelector(':scope > .v152-label-icon'))return;const text=clean(label.textContent);if(!text)return;label.classList.add('v152-label-iconized');label.insertAdjacentHTML('afterbegin',`<span class="v152-label-icon">${iconSvg(sectionIcon(text))}</span>`)});
+  }
+  function setSummary(rows){
+    const total=rows.length,open=rows.filter(i=>statusOf(i)==='Open').length,closed=total-open;
+    const metrics=d.querySelectorAll('#riskTopMetrics .metric');
+    const vals=[{n:total,sub:'Open + Closed issues in the current view'},{n:open,sub:`${total?(open/total*100).toFixed(1):'0.0'}% of current issue scope`},{n:closed,sub:`${total?(closed/total*100).toFixed(1):'0.0'}% of current issue scope`}];
+    metrics.forEach((m,idx)=>{const v=vals[idx];if(!v)return;const mv=m.querySelector('.mval');const ms=m.querySelector('.msub');if(mv)mv.textContent=v.n;if(ms)ms.textContent=v.sub;m.classList.add('v152-clickable-stat');m.dataset.v152Dim=idx===0?'all':'status';m.dataset.v152Value=idx===1?'Open':idx===2?'Closed':'';m.title=idx===0?'Show all issues in the current toolbar filters':`Filter Issue Log to ${m.dataset.v152Value} issues`;});
+    const badge=d.getElementById('riskBadge');if(badge)badge.textContent=`${total} Issues`;
+  }
+  function applyTableVisibility(){
+    const body=d.getElementById('riskTableBody');if(!body)return;const trs=[...body.querySelectorAll(':scope > tr')];
+    if(!sourceRows.length||!trs.length)return;
+    let visible=0;
+    trs.forEach((tr,idx)=>{const row=sourceRows[idx];const show=row?rowMatches(row):true;tr.style.display=show?'':'none';if(show)visible++});
+    if(visible===0&&trs.length){trs.forEach(tr=>tr.style.display='none');const empty=d.createElement('tr');empty.className='v152-analytics-empty-row';empty.innerHTML='<td colspan="12" class="note">No issues match the selected analytics output.</td>';body.appendChild(empty)}else body.querySelector('.v152-analytics-empty-row')?.remove();
+  }
+  function filterStrip(){
+    const host=d.getElementById('v151IssueAnalytics');if(!host)return;host.querySelector('.v152-analytics-filter-strip')?.remove();
+    const head=host.querySelector('.v151-analytics-head');if(!head)return;
+    const strip=d.createElement('div');strip.className='v152-analytics-filter-strip';
+    const active=Object.entries(filters).filter(([,v])=>v);
+    strip.innerHTML=`<span class="v152-filter-hint">${active.length?'Active analytics filters:':'Click any chart row / legend / priority to filter the Issue Log.'}</span>${active.map(([k,v])=>`<button class="v152-filter-chip" data-v152-clear-dim="${k}" title="Remove ${esc(dimLabels[k])} filter"><b>${esc(dimLabels[k])}</b>${esc(v)} ×</button>`).join('')}${active.length?'<button class="v152-filter-clear" data-v152-clear-all="1">Clear analytics filters</button>':''}`;
+    head.insertAdjacentElement('afterend',strip);
+  }
+  function markAnalyticsClickable(){
+    const host=d.getElementById('v151IssueAnalytics');if(!host)return;
+    host.querySelectorAll('.v151-analytics-card').forEach(card=>{
+      const title=clean(card.querySelector('.v151-card-title')?.textContent).replace(/^\s+/,'');let dim='';
+      if(/Issue Status/i.test(title))dim='status';else if(/Criticality/i.test(title))dim='criticality';else if(/Issue Owner/i.test(title))dim='owner';else if(/Alfanar Department/i.test(title))dim='department';else if(/SEC Priority/i.test(title))dim='secpriority';else if(/Vendors/i.test(title))dim='vendor';else if(/Issue Types/i.test(title))dim='issuetype';
+      if(!dim)return;
+      card.querySelectorAll('.v151-legend-row').forEach(row=>{const label=clean(row.querySelector('span:nth-child(2)')?.textContent);if(!label)return;row.classList.add('v152-clickable-stat');row.dataset.v152Dim=dim;row.dataset.v152Value=label;row.title=`Filter Issue Log: ${dimLabels[dim]} = ${label}`;if(filters[dim]&&norm(filters[dim])===norm(label))row.classList.add('v152-active-stat')});
+      card.querySelectorAll('.v151-bar-row').forEach(row=>{const label=clean(row.querySelector('.v151-bar-label')?.textContent);if(!label)return;row.classList.add('v152-clickable-stat');row.dataset.v152Dim=dim;row.dataset.v152Value=label;row.title=`Filter Issue Log: ${dimLabels[dim]} = ${label}`;if(filters[dim]&&norm(filters[dim])===norm(label))row.classList.add('v152-active-stat')});
+      card.querySelectorAll('.v151-priority-item').forEach(row=>{const label=clean(row.querySelector('.v151-priority-label')?.textContent);if(!label)return;row.classList.add('v152-clickable-stat');row.dataset.v152Dim=dim;row.dataset.v152Value=label;row.title=`Filter Issue Log: ${dimLabels[dim]} = ${label}`;if(filters[dim]&&norm(filters[dim])===norm(label))row.classList.add('v152-active-stat')});
+    });
+  }
+  const originalAnalytics=w.__v151RenderIssueAnalytics;
+  if(typeof originalAnalytics==='function'){
+    w.__v151RenderIssueAnalytics=function(rows){
+      sourceRows=Array.isArray(rows)?rows.slice():[];
+      const shown=filteredRows();
+      originalAnalytics(shown);
+      setTimeout(()=>{filterStrip();markAnalyticsClickable();setSummary(shown);applyTableVisibility();decorateIcons()},0);
+    };
+  }
+  function rerenderFromCurrent(){
+    if(applying)return;applying=true;
+    try{
+      const shown=filteredRows();
+      if(typeof originalAnalytics==='function')originalAnalytics(shown);
+      filterStrip();markAnalyticsClickable();setSummary(shown);applyTableVisibility();decorateIcons();
+    }finally{applying=false}
+  }
+  function scrollToIssueLog(){setTimeout(()=>{const body=d.getElementById('riskTableBody');const target=body?.closest('.table-wrap')||body;target?.scrollIntoView({behavior:'smooth',block:'start'})},40)}
+  d.addEventListener('click',e=>{
+    const clearDim=e.target?.closest?.('[data-v152-clear-dim]');if(clearDim){filters[clearDim.dataset.v152ClearDim]='';rerenderFromCurrent();return}
+    const clearAll=e.target?.closest?.('[data-v152-clear-all]');if(clearAll){clearAnalyticsFilters();rerenderFromCurrent();return}
+    const stat=e.target?.closest?.('.v152-clickable-stat');if(!stat)return;
+    const dim=stat.dataset.v152Dim,val=stat.dataset.v152Value||'';
+    if(dim==='all'){clearAnalyticsFilters()}else if(dim){filters[dim]=norm(filters[dim])===norm(val)?'':val}
+    rerenderFromCurrent();scrollToIssueLog();
+  },true);
+  d.addEventListener('click',e=>{if(e.target?.closest?.('#resetRiskFilters')){clearAnalyticsFilters();setTimeout(()=>{rerenderFromCurrent();decorateIcons()},80)}},true);
+  d.addEventListener('change',e=>{if(e.target?.matches?.('#riskProjectFilter,#riskTypeFilter,#v141IssueVendor,#v141IssueOwner,#v141IssueStatus,#riskTradeFilter,#riskPriorityFilter,#v141IssueAging'))setTimeout(decorateIcons,60)},true);
+  const obs=new MutationObserver(()=>{clearTimeout(w.__v152IconTimer);w.__v152IconTimer=setTimeout(decorateIcons,40)});obs.observe(d.body,{childList:true,subtree:true});
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(decorateIcons,120),{once:true});else setTimeout(decorateIcons,120);
+  w.addEventListener('load',()=>[150,650,1500].forEach(t=>setTimeout(decorateIcons,t)),{once:true});
+})();
+</script>
+
+
+
+<!-- v153: unique issue icons + always-visible clear filters -->
+<style id="v153-issue-icons-clear-style">
+/* Hide the previous repeated/tiny v152 icon treatment inside the Issue section only. */
+#riskSection .v152-title-icon,
+#riskSection .v152-label-icon{display:none!important}
+
+/* One clear, unique icon per Issue summary/analytics card. */
+#riskTopMetrics .metric{position:relative!important;padding-right:58px!important}
+.v153-summary-icon,.v153-card-icon{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:34px;height:34px;border-radius:10px;
+  background:#edf6fd;color:#0f6fbd;border:1px solid #d5e7f4;
+  box-shadow:0 4px 12px rgba(15,111,189,.08)
+}
+.v153-summary-icon{position:absolute;right:14px;top:13px}
+.v153-summary-icon svg,.v153-card-icon svg{width:19px;height:19px;display:block}
+#riskTopMetrics .metric:nth-child(1) .v153-summary-icon{background:#edf6fd;color:#0f6fbd}
+#riskTopMetrics .metric:nth-child(2) .v153-summary-icon{background:#fff6e8;color:#c77b00;border-color:#f1d5a3}
+#riskTopMetrics .metric:nth-child(3) .v153-summary-icon{background:#eefaf5;color:#14945e;border-color:#c7e8d8}
+
+#v151IssueAnalytics .v151-card-head{align-items:center!important}
+#v151IssueAnalytics .v151-card-title{display:flex!important;align-items:center!important;gap:9px!important}
+#v151IssueAnalytics .v153-card-icon{width:32px;height:32px;border-radius:9px}
+
+/* Clear Filters lives in the Issue Statistics header and is always visible. */
+.v153-analytics-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#v153IssueClearFilters{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid #bfd8ea;background:#fff;color:#0f6fbd;
+  border-radius:10px;padding:8px 11px;font-size:10px;font-weight:950;cursor:pointer;
+  box-shadow:0 4px 12px rgba(15,111,189,.06);white-space:nowrap
+}
+#v153IssueClearFilters:hover{background:#edf6fd;border-color:#9fc8e5}
+#v153IssueClearFilters svg{width:15px;height:15px}
+#v151IssueAnalytics .v151-analytics-badge{margin:0!important}
+
+@media(max-width:760px){
+  .v153-analytics-actions{justify-content:flex-start}
+  #riskTopMetrics .metric{padding-right:52px!important}
+  .v153-summary-icon{right:11px;top:11px;width:31px;height:31px}
+}
+</style>
+<script id="v153-issue-icons-clear-script">
+(function(){
+  const d=document,w=window;if(w.__v153IssueIconsClear)return;w.__v153IssueIconsClear=true;
+  const clean=v=>String(v==null?'':v).trim();
+  function svg(name){
+    const p={
+      total:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+      open:'<path d="M4 8h6l2 2h8v9H4z"/><path d="M4 8V5h6l2 2"/>',
+      closed:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
+      status:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="11" cy="17" r="1"/>',
+      critical:'<path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4m0 3h.01"/>',
+      owner:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2"/><path d="M3 20c.7-4 2.8-6 6-6s5.3 2 6 6M14 15c2.8.2 4.6 1.8 5 5"/>',
+      dept:'<path d="M4 20V7l8-4 8 4v13"/><path d="M8 10h2m4 0h2M8 14h2m4 0h2M10 20v-3h4v3"/>',
+      priority:'<path d="M5 21V4"/><path d="M5 5h11l-2 4 2 4H5"/>',
+      vendor:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+      type:'<path d="M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v5H4zM13 14h7v5h-7z"/>',
+      clear:'<path d="M3 5h18l-7 8v5l-4 2v-7z"/><path d="m17 4 4 4m0-4-4 4"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[name]||p.total}</svg>`;
+  }
+  function keyForTitle(t){
+    const x=clean(t).toLowerCase();
+    if(x.includes('issue status'))return'status';
+    if(x.includes('criticality'))return'critical';
+    if(x.includes('issue owner'))return'owner';
+    if(x.includes('alfanar department'))return'dept';
+    if(x.includes('sec priority'))return'priority';
+    if(x.includes('vendor'))return'vendor';
+    if(x.includes('issue type'))return'type';
+    return'total';
+  }
+  function applySummaryIcons(){
+    const cards=[...d.querySelectorAll('#riskTopMetrics .metric')];
+    const keys=['total','open','closed'];
+    cards.forEach((card,i)=>{
+      card.querySelectorAll(':scope > .v153-summary-icon').forEach((n,j)=>{if(j>0)n.remove()});
+      if(card.querySelector(':scope > .v153-summary-icon'))return;
+      const el=d.createElement('span');el.className='v153-summary-icon';el.innerHTML=svg(keys[i]||'total');card.appendChild(el);
+    });
+  }
+  function applyAnalyticsIcons(){
+    d.querySelectorAll('#v151IssueAnalytics .v151-analytics-card').forEach(card=>{
+      const title=card.querySelector('.v151-card-title');if(!title)return;
+      title.querySelectorAll('.v153-card-icon').forEach((n,j)=>{if(j>0)n.remove()});
+      if(title.querySelector('.v153-card-icon'))return;
+      const el=d.createElement('span');el.className='v153-card-icon';el.innerHTML=svg(keyForTitle(title.textContent));title.prepend(el);
+    });
+  }
+  function ensureClear(){
+    const host=d.getElementById('v151IssueAnalytics');if(!host)return;
+    const head=host.querySelector('.v151-analytics-head');if(!head)return;
+    let actions=head.querySelector('.v153-analytics-actions');
+    if(!actions){
+      const badge=head.querySelector('.v151-analytics-badge');
+      actions=d.createElement('div');actions.className='v153-analytics-actions';
+      if(badge){badge.replaceWith(actions);actions.appendChild(badge)}else head.appendChild(actions);
+    }
+    if(!actions.querySelector('#v153IssueClearFilters')){
+      const b=d.createElement('button');b.id='v153IssueClearFilters';b.type='button';b.innerHTML=`${svg('clear')}<span>Clear Filters</span>`;b.title='Clear all Issue Log and Issue Analytics filters';actions.appendChild(b);
+    }
+  }
+  function refresh(){applySummaryIcons();applyAnalyticsIcons();ensureClear()}
+  d.addEventListener('click',e=>{
+    if(!e.target?.closest?.('#v153IssueClearFilters'))return;
+    e.preventDefault();e.stopPropagation();
+    const reset=d.getElementById('resetRiskFilters');
+    if(reset){reset.click()}else{
+      ['riskProjectFilter','riskTypeFilter','v141IssueVendor','v141IssueOwner','v141IssueStatus','riskTradeFilter','riskPriorityFilter','v141IssueAging'].forEach(id=>{const el=d.getElementById(id);if(el){el.value='';el.dispatchEvent(new Event('change',{bubbles:true}))}});
+      const s=d.getElementById('riskSearch');if(s){s.value='';s.dispatchEvent(new Event('input',{bubbles:true}))}
+    }
+    setTimeout(refresh,120);
+  },true);
+  const obs=new MutationObserver(()=>{clearTimeout(w.__v153IssueIconTimer);w.__v153IssueIconTimer=setTimeout(refresh,50)});
+  if(d.body)obs.observe(d.body,{childList:true,subtree:true});
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,120),{once:true});else setTimeout(refresh,120);
+  w.addEventListener('load',()=>[180,650,1400].forEach(t=>setTimeout(refresh,t)),{once:true});
+})();
+</script>
+
+
+<!-- v154: issue analytics balanced layout + large semantic icons + persistent clear filters -->
+<style id="v154-issue-analytics-ux-style">
+/* Replace previous small issue icons with larger semantic icons. */
+#riskSection .v153-summary-icon,
+#v151IssueAnalytics .v153-card-icon{display:none!important}
+
+#riskTopMetrics .metric{position:relative!important;padding-right:78px!important;overflow:hidden}
+.v154-summary-icon{
+  position:absolute;right:16px;top:16px;width:48px;height:48px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;border:1px solid #d7e5ef;
+  box-shadow:0 7px 18px rgba(18,62,98,.10);background:#eef6fc;color:#0f6fbd
+}
+.v154-summary-icon svg{width:26px;height:26px;display:block;stroke-width:2.1}
+#riskTopMetrics .metric:nth-child(1) .v154-summary-icon{background:#eaf4fd;color:#0f6fbd;border-color:#cfe3f3}
+#riskTopMetrics .metric:nth-child(2) .v154-summary-icon{background:#fff5e5;color:#c97b00;border-color:#efd09a}
+#riskTopMetrics .metric:nth-child(3) .v154-summary-icon{background:#eaf9f2;color:#14945e;border-color:#bee4d1}
+
+/* Balanced analytics canvas: 3 + 2 + 1 + 1, no dead third column. */
+#v151IssueAnalytics .v151-analytics-grid{
+  display:grid!important;grid-template-columns:repeat(12,minmax(0,1fr))!important;
+  gap:14px!important;align-items:stretch!important
+}
+#v151IssueAnalytics .v151-analytics-card{grid-column:span 4!important;min-height:226px!important;padding:16px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="dept"],
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="priority"]{grid-column:span 6!important;min-height:250px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"],
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"]{grid-column:1/-1!important;min-height:290px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"] .v151-bar-list,
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"] .v151-bar-list{max-height:330px!important}
+#v151IssueAnalytics .v151-card-head{min-height:50px!important;margin-bottom:13px!important;align-items:center!important}
+#v151IssueAnalytics .v151-card-title{display:flex!important;align-items:center!important;gap:12px!important;font-size:12px!important;letter-spacing:.72px!important}
+.v154-card-icon{
+  width:44px;height:44px;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 44px;border:1px solid #d5e5f1;box-shadow:0 6px 15px rgba(18,62,98,.09);
+  background:#eef6fc;color:#0f6fbd
+}
+.v154-card-icon svg{width:25px;height:25px;display:block;stroke-width:2.05}
+.v151-analytics-card[data-v154-kind="status"] .v154-card-icon{background:#e8f5fb;color:#176f8e;border-color:#c6e2ef}
+.v151-analytics-card[data-v154-kind="critical"] .v154-card-icon{background:#fff0ec;color:#d94f4f;border-color:#f2c8bf}
+.v151-analytics-card[data-v154-kind="owner"] .v154-card-icon{background:#eef3ff;color:#4f78c9;border-color:#d3ddf5}
+.v151-analytics-card[data-v154-kind="dept"] .v154-card-icon{background:#eff8ff;color:#1874b7;border-color:#d1e7f7}
+.v151-analytics-card[data-v154-kind="priority"] .v154-card-icon{background:#fff4df;color:#c17a00;border-color:#efd29d}
+.v151-analytics-card[data-v154-kind="vendor"] .v154-card-icon{background:#eefaf5;color:#15945f;border-color:#cae9da}
+.v151-analytics-card[data-v154-kind="type"] .v154-card-icon{background:#f4efff;color:#7657bd;border-color:#ddd2f2}
+
+/* One unmistakable clear button directly in the Issue Analytics header. */
+#v151IssueAnalytics .v151-analytics-head{align-items:center!important;margin-bottom:13px!important}
+.v154-analytics-actions{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+#v154IssueClearFilters{
+  min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border:1px solid #a9cde6;background:#0f6fbd;color:#fff;border-radius:11px;
+  padding:9px 14px;font-size:11px;font-weight:950;letter-spacing:.15px;cursor:pointer;
+  box-shadow:0 7px 16px rgba(15,111,189,.18);white-space:nowrap
+}
+#v154IssueClearFilters:hover{background:#0d63aa;border-color:#0d63aa}
+#v154IssueClearFilters svg{width:19px;height:19px;stroke-width:2.2}
+#v151IssueAnalytics .v151-analytics-badge{font-size:10px!important;padding:7px 10px!important}
+
+@media(max-width:1100px){
+  #v151IssueAnalytics .v151-analytics-card{grid-column:span 6!important}
+  #v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"],
+  #v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"]{grid-column:1/-1!important}
+}
+@media(max-width:700px){
+  #v151IssueAnalytics .v151-analytics-card{grid-column:1/-1!important}
+  #riskTopMetrics .metric{padding-right:68px!important}
+  .v154-summary-icon{width:44px;height:44px;right:12px;top:12px}
+  .v154-analytics-actions{width:100%;justify-content:flex-start;margin-left:0}
+  #v151IssueAnalytics .v151-analytics-head{flex-wrap:wrap}
+}
+</style>
+<script id="v154-issue-analytics-ux-script">
+(function(){
+  const d=document,w=window;if(w.__v154IssueAnalyticsUX)return;w.__v154IssueAnalyticsUX=true;
+  const clean=v=>String(v==null?'':v).trim();
+  function svg(name){
+    const p={
+      total:'<path d="M6 3h12v4H6z"/><rect x="4" y="7" width="16" height="14" rx="3"/><path d="M8 11h8M8 15h8M8 19h5"/>',
+      open:'<path d="M4 8h6l2 2h8v9H4z"/><path d="M4 8V5h6l2 2"/><path d="M16 5v4m-2-2h4"/>',
+      closed:'<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-7"/>',
+      status:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="17" r="2"/>',
+      critical:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
+      owner:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c.8-4 2.9-6 6-6s5.2 2 6 6M14 15c3 .2 5 1.8 5.5 5"/>',
+      dept:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2m4 0h2M8 14h2m4 0h2M9 21v-4h6v4"/>',
+      priority:'<path d="M5 21V4"/><path d="M5 5h12l-2.5 4L17 13H5"/><circle cx="5" cy="4" r="1"/>',
+      vendor:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 11h5"/>',
+      type:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/>',
+      clear:'<path d="M4 5h16l-6 7v5l-4 2v-7z"/><path d="m17 4 4 4m0-4-4 4"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[name]||p.total}</svg>`;
+  }
+  function kindFromTitle(t){
+    const x=clean(t).toLowerCase();
+    if(x.includes('issue status'))return'status';
+    if(x.includes('criticality'))return'critical';
+    if(x.includes('issue owner'))return'owner';
+    if(x.includes('alfanar department'))return'dept';
+    if(x.includes('sec priority'))return'priority';
+    if(x.includes('vendor'))return'vendor';
+    if(x.includes('issue type'))return'type';
+    return'total';
+  }
+  function summaryIcons(){
+    const cards=[...d.querySelectorAll('#riskTopMetrics .metric')],keys=['total','open','closed'];
+    cards.forEach((card,i)=>{
+      card.querySelectorAll(':scope > .v154-summary-icon').forEach((n,j)=>{if(j>0)n.remove()});
+      let el=card.querySelector(':scope > .v154-summary-icon');
+      if(!el){el=d.createElement('span');el.className='v154-summary-icon';card.appendChild(el)}
+      el.innerHTML=svg(keys[i]||'total');
+    });
+  }
+  function analyticsCards(){
+    d.querySelectorAll('#v151IssueAnalytics .v151-analytics-card').forEach(card=>{
+      const title=card.querySelector('.v151-card-title');if(!title)return;
+      const kind=kindFromTitle(title.textContent);card.dataset.v154Kind=kind;
+      title.querySelectorAll('.v154-card-icon').forEach((n,j)=>{if(j>0)n.remove()});
+      let icon=title.querySelector('.v154-card-icon');
+      if(!icon){icon=d.createElement('span');icon.className='v154-card-icon';title.prepend(icon)}
+      icon.innerHTML=svg(kind);
+    });
+  }
+  function ensureClear(){
+    const host=d.getElementById('v151IssueAnalytics'),head=host?.querySelector('.v151-analytics-head');if(!head)return;
+    let actions=head.querySelector('.v154-analytics-actions');
+    if(!actions){
+      actions=d.createElement('div');actions.className='v154-analytics-actions';
+      const old=head.querySelector('.v153-analytics-actions');
+      const badge=head.querySelector('.v151-analytics-badge');
+      if(old){const b=old.querySelector('.v151-analytics-badge');if(b)actions.appendChild(b);old.remove()}
+      else if(badge)actions.appendChild(badge);
+      head.appendChild(actions);
+    }
+    if(!actions.querySelector('#v154IssueClearFilters')){
+      const b=d.createElement('button');b.id='v154IssueClearFilters';b.type='button';
+      b.innerHTML=`${svg('clear')}<span>Clear Filters</span>`;
+      b.title='Clear all Issue Analytics and Issue Log filters';actions.appendChild(b);
+    }
+    const oldBtn=d.getElementById('v153IssueClearFilters');if(oldBtn)oldBtn.style.display='none';
+  }
+  function sync(){summaryIcons();analyticsCards();ensureClear()}
+  const prior=w.__v151RenderIssueAnalytics;
+  if(typeof prior==='function'){
+    w.__v151RenderIssueAnalytics=function(rows){const r=prior(rows);sync();requestAnimationFrame(sync);return r};
+  }
+  d.addEventListener('click',e=>{
+    const btn=e.target?.closest?.('#v154IssueClearFilters');if(!btn)return;
+    e.preventDefault();e.stopPropagation();
+    const reset=d.getElementById('resetRiskFilters');
+    if(reset)reset.click();
+    else{
+      ['riskProjectFilter','riskTypeFilter','v141IssueVendor','v141IssueOwner','v141IssueStatus','riskTradeFilter','riskPriorityFilter','v141IssueAging'].forEach(id=>{const el=d.getElementById(id);if(el){el.value='';el.dispatchEvent(new Event('change',{bubbles:true}))}});
+      const s=d.getElementById('riskSearch');if(s){s.value='';s.dispatchEvent(new Event('input',{bubbles:true}))}
+    }
+    setTimeout(sync,50);setTimeout(sync,180);
+  },true);
+  const obs=new MutationObserver(()=>{clearTimeout(w.__v154IssueUXTimer);w.__v154IssueUXTimer=setTimeout(sync,30)});
+  if(d.body)obs.observe(d.body,{childList:true,subtree:true});
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(sync,30),{once:true});else setTimeout(sync,30);
+  w.addEventListener('load',()=>[60,250,800].forEach(t=>setTimeout(sync,t)),{once:true});
+})();
+</script>
+
+
+<!-- v155: persistent large icons + balanced issue analytics + action health -->
+<style id="v155-persistent-icons-balanced-issues-style">
+/* Retire the legacy tiny icon layer. v155 owns visible icons. */
+.v152-title-icon,.v152-label-icon{display:none!important}
+#v151IssueAnalytics .v153-card-icon,#riskTopMetrics .v153-summary-icon{display:none!important}
+
+/* Persistent large semantic icons in Issue Summary / Analytics. */
+#riskTopMetrics .v154-summary-icon{display:inline-flex!important;width:48px!important;height:48px!important;border-radius:14px!important;right:16px!important;top:15px!important}
+#riskTopMetrics .v154-summary-icon svg{width:28px!important;height:28px!important}
+#v151IssueAnalytics .v154-card-icon{display:inline-flex!important;width:46px!important;height:46px!important;flex:0 0 46px!important;border-radius:14px!important}
+#v151IssueAnalytics .v154-card-icon svg{width:27px!important;height:27px!important}
+
+/* Balanced canvas: 3 / 3 / 2. No dead column. */
+#v151IssueAnalytics .v151-analytics-grid{grid-template-columns:repeat(12,minmax(0,1fr))!important;gap:14px!important}
+#v151IssueAnalytics .v151-analytics-card{grid-column:span 4!important;min-height:232px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="dept"],
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="priority"],
+#v151IssueAnalytics .v155-action-health{grid-column:span 4!important;min-height:258px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"],
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"]{grid-column:span 6!important;min-height:310px!important}
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"] .v151-bar-list,
+#v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"] .v151-bar-list{max-height:345px!important}
+
+/* Action Health fills the former empty slot and is fully interactive. */
+.v155-action-health .v151-card-title{display:flex!important;align-items:center!important;gap:12px!important}
+.v155-action-icon{width:46px;height:46px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 46px;background:#eef7fd;color:#0f6fbd;border:1px solid #cfe3f3;box-shadow:0 6px 15px rgba(18,62,98,.09)}
+.v155-action-icon svg{width:27px;height:27px;display:block}
+.v155-health-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:7px}
+.v155-health-stat{border:1px solid #d9e6f0;border-radius:13px;padding:12px;background:#fff;cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;min-height:82px;display:flex;flex-direction:column;justify-content:center}
+.v155-health-stat:hover{transform:translateY(-1px);box-shadow:0 7px 17px rgba(18,70,112,.09);border-color:#b9d7ea}
+.v155-health-stat .v155-h-label{font-size:9px;text-transform:uppercase;letter-spacing:.65px;color:#667b8f;font-weight:950}
+.v155-health-stat .v155-h-value{font-size:23px;line-height:1;margin-top:8px;font-weight:950;color:#173454}
+.v155-health-stat .v155-h-sub{font-size:9px;margin-top:6px;color:#7a8b9b;font-weight:750}
+.v155-health-stat.overdue{border-left:4px solid #d94f4f;background:#fff9f9}.v155-health-stat.overdue .v155-h-value{color:#d94f4f}
+.v155-health-stat.due{border-left:4px solid #ef9a12;background:#fffaf2}.v155-health-stat.due .v155-h-value{color:#bd7900}
+.v155-health-stat.age{border-left:4px solid #7a63c7;background:#fbf9ff}.v155-health-stat.age .v155-h-value{color:#6e57bb}
+.v155-health-stat.notarget{border-left:4px solid #71879a;background:#fbfcfd}.v155-health-stat.notarget .v155-h-value{color:#60778b}
+
+/* Larger professional icons for the rest of the dashboard section headers and top KPIs. */
+.v155-global-title{display:inline-flex!important;align-items:center!important;gap:10px!important}
+.v155-global-title-icon{width:34px;height:34px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 34px;background:#eaf4fb;color:#0f6fbd;border:1px solid #d2e5f2;box-shadow:0 5px 12px rgba(18,62,98,.07)}
+.v155-global-title-icon svg{width:20px;height:20px;display:block}
+#topKpis .kpi{position:relative!important;padding-right:58px!important}
+.v155-kpi-icon{position:absolute;right:14px;top:14px;width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#edf6fd;color:var(--tone,#0f6fbd);border:1px solid #d5e7f4;z-index:2;box-shadow:0 5px 13px rgba(18,62,98,.07)}
+.v155-kpi-icon svg{width:22px;height:22px;display:block}
+
+@media(max-width:1100px){
+ #v151IssueAnalytics .v151-analytics-card,#v151IssueAnalytics .v155-action-health{grid-column:span 6!important}
+ #v151IssueAnalytics .v151-analytics-card[data-v154-kind="vendor"],#v151IssueAnalytics .v151-analytics-card[data-v154-kind="type"]{grid-column:1/-1!important}
+}
+@media(max-width:700px){
+ #v151IssueAnalytics .v151-analytics-card,#v151IssueAnalytics .v155-action-health{grid-column:1/-1!important}
+ .v155-health-grid{grid-template-columns:1fr}
+}
+</style>
+<script id="v155-persistent-icons-balanced-issues-script">
+(function(){
+ const d=document,w=window;if(w.__v155PersistentIconsBalancedIssues)return;w.__v155PersistentIconsBalancedIssues=true;
+ const clean=v=>String(v==null?'':v).trim();
+ const norm=v=>clean(v).toLowerCase().replace(/\s+/g,' ');
+ function svg(name){
+  const p={
+   dashboard:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+   folder:'<path d="M3 6h6l2 2h10v10H3z"/><path d="M3 6V4h6l2 2"/>',
+   chart:'<path d="M4 19V9m6 10V5m6 14v-7"/><path d="M2 21h20"/>',
+   gauge:'<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-5"/><circle cx="12" cy="16" r="1.4"/>',
+   money:'<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-1-1.2-5-.9-5 1 0 2.5 5.5 1.4 5.5 4.1 0 2.2-4.3 2.6-6.1.8M12 5.5v13"/>',
+   wallet:'<path d="M4 7h14a2 2 0 0 1 2 2v9H4z"/><path d="M4 7V5h12v2"/><path d="M15 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
+   alert:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
+   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+   table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 9v11M15 9v11"/>',
+   user:'<circle cx="12" cy="8" r="3"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/>',
+   briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3m-12 5h18"/>',
+   receipt:'<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+   trend:'<path d="M4 17 9 12l4 3 7-8"/><path d="M15 7h5v5"/>',
+   layers:'<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>',
+   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+   action:'<path d="M4 19h16"/><path d="M6 16 10 12l3 3 5-7"/><path d="M16 8h2v2"/>',
+   total:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+   open:'<path d="M4 8h6l2 2h8v9H4z"/><path d="M4 8V5h6l2 2"/><path d="M16 5v4m-2-2h4"/>',
+   closed:'<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-7"/>',
+   status:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="17" r="2"/>',
+   critical:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
+   owner:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c.8-4 2.9-6 6-6s5.2 2 6 6M14 15c3 .2 5 1.8 5.5 5"/>',
+   dept:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2m4 0h2M8 14h2m4 0h2M9 21v-4h6v4"/>',
+   priority:'<path d="M5 21V4"/><path d="M5 5h12l-2.5 4L17 13H5"/>',
+   vendor:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+   type:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/>'
+  };
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p[name]||p.dashboard}</svg>`;
+ }
+ function sectionKind(text){const x=norm(text);if(/project identity|profile/.test(x))return'user';if(/performance by project type|performance by project|progress/.test(x))return'chart';if(/milestone|tcc|date|schedule/.test(x))return'calendar';if(/contract|budget|commercial|cost/.test(x))return'briefcase';if(/billing|invoice/.test(x))return'receipt';if(/profit/.test(x))return'trend';if(/poc|exposure/.test(x))return'layers';if(/register/.test(x))return'table';if(/issue|risk/.test(x))return'alert';if(/project/.test(x))return'folder';return'dashboard'}
+ function kpiKind(text){const x=norm(text);if(/^projects?$/.test(x))return'folder';if(/current actual/.test(x))return'chart';if(/spi/.test(x))return'gauge';if(/contract value/.test(x))return'briefcase';if(/net cash/.test(x))return'wallet';if(/critical/.test(x))return'alert';if(/schedule/.test(x))return'calendar';if(/eot/.test(x))return'clock';return'dashboard'}
+ function ensureGlobalIcons(){
+  d.querySelectorAll('.cardhead .title').forEach(t=>{if(t.id==='riskTitle')return;let i=t.querySelector(':scope > .v155-global-title-icon');if(!i){i=d.createElement('span');i.className='v155-global-title-icon';t.prepend(i)}i.innerHTML=svg(sectionKind(t.textContent));t.classList.add('v155-global-title')});
+  d.querySelectorAll('#topKpis .kpi').forEach(k=>{const label=k.querySelector('label');if(!label)return;let i=k.querySelector(':scope > .v155-kpi-icon');if(!i){i=d.createElement('span');i.className='v155-kpi-icon';k.appendChild(i)}i.innerHTML=svg(kpiKind(label.textContent))});
+ }
+ function issueKind(title){const x=norm(title);if(x.includes('issue status'))return'status';if(x.includes('criticality'))return'critical';if(x.includes('issue owner'))return'owner';if(x.includes('alfanar department'))return'dept';if(x.includes('sec priority'))return'priority';if(x.includes('vendor'))return'vendor';if(x.includes('issue type'))return'type';return'total'}
+ function ensureIssueIcons(){
+  const summary=[...d.querySelectorAll('#riskTopMetrics .metric')],keys=['total','open','closed'];summary.forEach((card,idx)=>{let el=card.querySelector(':scope > .v154-summary-icon');if(!el){el=d.createElement('span');el.className='v154-summary-icon';card.appendChild(el)}el.innerHTML=svg(keys[idx]||'total')});
+  d.querySelectorAll('#v151IssueAnalytics .v151-analytics-card:not(.v155-action-health)').forEach(card=>{const title=card.querySelector('.v151-card-title');if(!title)return;const kind=issueKind(title.textContent);card.dataset.v154Kind=kind;let el=title.querySelector(':scope > .v154-card-icon');if(!el){el=d.createElement('span');el.className='v154-card-icon';title.prepend(el)}el.innerHTML=svg(kind)});
+ }
+ function visibleIssueRows(){return [...d.querySelectorAll('#riskTableBody > tr')].filter(tr=>tr.style.display!=='none'&&!tr.classList.contains('v152-analytics-empty-row')&&tr.children.length>=12)}
+ function healthStats(){
+  const rows=visibleIssueRows();let overdue=0,due30=0,age90=0,noTarget=0,open=0;
+  rows.forEach(tr=>{const cells=tr.children;const aging=clean(cells[10]?.textContent),status=clean(cells[11]?.textContent);const isOpen=/open/i.test(status);if(isOpen)open++;if(/overdue/i.test(aging))overdue++;const dm=aging.match(/Due in\s+(\d+)d/i);if(/Due today/i.test(aging)||(dm&&Number(dm[1])<=30))due30++;const am=aging.match(/(\d+)d\s+open/i);if(isOpen&&am){noTarget++;if(Number(am[1])>90)age90++}}
+  );return {overdue,due30,age90,noTarget,open};
+ }
+ function ensureActionHealth(){
+  const grid=d.querySelector('#v151IssueAnalytics .v151-analytics-grid');if(!grid)return;const priority=[...grid.querySelectorAll('.v151-analytics-card')].find(c=>/SEC Priority/i.test(clean(c.querySelector('.v151-card-title')?.textContent)));if(!priority)return;
+  let card=grid.querySelector('.v155-action-health');if(!card){card=d.createElement('div');card.className='v151-analytics-card v155-action-health';priority.insertAdjacentElement('afterend',card)}
+  const s=healthStats();card.innerHTML=`<div class="v151-card-head"><div class="v151-card-title"><span class="v155-action-icon">${svg('action')}</span><span>Action Health</span></div><div class="v151-card-total">${s.open} Open</div></div><div class="v155-health-grid"><div class="v155-health-stat overdue" data-v155-aging="overdue" title="Filter Issue Log to overdue targets"><div class="v155-h-label">Overdue Targets</div><div class="v155-h-value">${s.overdue}</div><div class="v155-h-sub">Open actions past target</div></div><div class="v155-health-stat due" data-v155-aging="due30" title="Filter Issue Log to targets due in the next 30 days"><div class="v155-h-label">Due ≤ 30 Days</div><div class="v155-h-value">${s.due30}</div><div class="v155-h-sub">Upcoming action targets</div></div><div class="v155-health-stat age" data-v155-aging="age90" title="Filter Issue Log to open issues older than 90 days"><div class="v155-h-label">Open &gt; 90 Days</div><div class="v155-h-value">${s.age90}</div><div class="v155-h-sub">Long-running open issues</div></div><div class="v155-health-stat notarget" data-v155-aging="notarget" title="Filter Issue Log to issues without a target date"><div class="v155-h-label">No Target Date</div><div class="v155-h-value">${s.noTarget}</div><div class="v155-h-sub">Open issues requiring target</div></div></div>`;
+ }
+ let busy=false,timer=null;
+ function sync(){if(busy)return;busy=true;try{ensureGlobalIcons();ensureIssueIcons();ensureActionHealth()}finally{busy=false}}
+ function schedule(){clearTimeout(timer);timer=setTimeout(()=>{sync();requestAnimationFrame(sync)},0)}
+ d.addEventListener('click',e=>{const stat=e.target?.closest?.('[data-v155-aging]');if(!stat)return;const sel=d.getElementById('v141IssueAging');if(sel){sel.value=stat.dataset.v155Aging;sel.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>{d.getElementById('riskTableBody')?.closest('.table-wrap')?.scrollIntoView({behavior:'smooth',block:'start'})},40)}},true);
+ d.addEventListener('change',e=>{if(e.target?.matches?.('#riskProjectFilter,#riskTypeFilter,#v141IssueVendor,#v141IssueOwner,#v141IssueStatus,#riskTradeFilter,#riskPriorityFilter,#v141IssueAging,#projectFilter,#typeFilter,#statusFilter,#regionFilter'))schedule()},true);
+ d.addEventListener('click',e=>{if(e.target?.closest?.('#resetRiskFilters,#v154IssueClearFilters,#v153IssueClearFilters,[data-v152-clear-all],[data-v152-clear-dim],.v152-clickable-stat'))schedule()},true);
+ const host=d.getElementById('v151IssueAnalytics'),metrics=d.getElementById('riskTopMetrics'),top=d.getElementById('topKpis');const obs=new MutationObserver(schedule);if(host)obs.observe(host,{childList:true,subtree:true});if(metrics)obs.observe(metrics,{childList:true,subtree:true});if(top)obs.observe(top,{childList:true,subtree:true});
+ if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',()=>setTimeout(sync,30),{once:true});else setTimeout(sync,30);w.addEventListener('load',()=>[40,180,650].forEach(t=>setTimeout(sync,t)),{once:true});
 })();
 </script>
 </body>
